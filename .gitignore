@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# React / Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Database
+*.db
+*.sqlite3
+investment_risk.db
+
+# OS / Misc
+.DS_Store
+.gemini/
+.vscode/

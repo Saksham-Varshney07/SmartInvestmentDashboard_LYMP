@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Investment Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <nav class="top-nav">
+        <div class="nav-left">
+            <h1>Smart Investment Dashboard</h1>
+            <ul class="nav-links">
+                <li class="active"><a href="#" onclick="switchTab('dashboard')">Dashboard</a></li>
+                <li><a href="#" onclick="switchTab('risk')">Risk Analysis</a></li>
+                <li><a href="#" onclick="switchTab('portfolio')">Portfolio</a></li>
+                <li><a href="#" onclick="switchTab('sip')">SIP Planner</a></li>
+                <li><a href="#" onclick="switchTab('asset')">Asset Explorer</a></li>
+            </ul>
+        </div>
+        <div class="nav-right">
+            <input type="text" placeholder="Search markets..." class="search-bar">
+            <!-- Icon placeholders -->
+            <span class="icon bell">🔔</span>
+            <span class="icon settings">⚙️</span>
+            <div class="avatar"></div>
+        </div>
+    </nav>
+
+    <!-- MAIN DASHBOARD -->
+    <main id="tab-dashboard" class="tab-content active-tab">
+        <div class="hero-banner">
+            <span class="badge">DAILY PERSPECTIVE</span>
+            <h2>"Investing is the key to financial freedom"</h2>
+            <p>— Smart Investment Insights</p>
+        </div>
+
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <h3>Total Investment</h3>
+                <div class="kpi-value">$124,500.00</div>
+                <div class="kpi-subtitle">Updated 2m ago</div>
+            </div>
+            <div class="kpi-card">
+                <h3>Portfolio Value</h3>
+                <div class="kpi-value">$142,820.45</div>
+                <div class="kpi-change positive">↗ +$1,240.00 Today</div>
+            </div>
+            <div class="kpi-card outline-green">
+                <h3>Total Profit</h3>
+                <div class="kpi-value positive">+$18,320.45</div>
+                <div class="kpi-badge">+14.7% All Time</div>
+            </div>
+            <div class="kpi-card">
+                <h3>Annual Growth</h3>
+                <div class="kpi-value">22.4%</div>
+                <div class="progress-bar"><div class="fill" style="width: 22.4%"></div></div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="dashboard-left">
+                <div class="section-card">
+                    <h3>Asset Allocation</h3>
+                    <!-- placeholders mimicking image 3 -->
+                    <div class="allocation-grid">
+                        <div class="alloc-item"><span>Stocks</span><br/>65%</div>
+                        <div class="alloc-item"><span>Crypto</span><br/>15%</div>
+                        <div class="alloc-item"><span>Gold & Silver</span><br/>12%</div>
+                        <div class="alloc-item"><span>Cash</span><br/>8%</div>
+                    </div>
+                </div>
+                <div class="section-card">
+                    <h3>Portfolio Performance</h3>
+                    <div class="chart-container">
+                        <canvas id="portfolioChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="dashboard-right section-card">
+                <h3>Recent Activity</h3>
+                <ul class="activity-list">
+                    <li>Bought AAPL <span class="negative">-$2,400</span></li>
+                    <li>Dividend Received <span class="positive">+$45.20</span></li>
+                    <li>SIP Processed <span class="negative">-$500</span></li>
+                </ul>
+            </div>
+        </div>
+    </main>
+
+    <!-- RISK ANALYSIS -->
+    <main id="tab-risk" class="tab-content" style="display: none;">
+        <p class="tab-subtitle">Quantifying risk and exploring high-yield opportunities across global asset classes.</p>
+        
+        <div class="risk-top">
+            <div class="risk-engine section-card">
+                <h3>Risk Analysis Engine</h3>
+                <div class="category-buttons">
+                    <button class="active">Stock</button>
+                    <button>Crypto</button>
+                    <button>Gold</button>
+                    <button>Silver</button>
+                </div>
+                <label>SYMBOL INPUT</label>
+                <input type="text" id="symbolInput" placeholder="AAPL" value="RELIANCE.NS">
+                <button class="primary-btn" onclick="runBackendAnalysis()">Generate Risk Profile</button>
+                
+                <div class="analysis-results" style="margin-top: 20px;">
+                    <div style="display:flex; justify-content: space-between; align-items:center;">
+                        <h4>Analysis Results</h4>
+                        <div class="stars" id="risk-stars">⭐⭐⭐⭐⭐</div>
+                    </div>
+                    <div class="badge-row">
+                        <div class="badge-item">RISK LEVEL<br/><span id="risk-level" class="positive">Low</span></div>
+                        <div class="badge-item">STABILITY<br/><span id="risk-stability" class="positive">Stable</span></div>
+                        <div class="badge-item">TREND<br/><span id="risk-trend" class="positive">Up</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="risk-stats">
+                <div class="mini-kpi-grid">
+                    <div class="kpi-card"><h3>RETURNS</h3><div class="kpi-value positive" id="risk-returns">+4.28%</div></div>
+                    <div class="kpi-card"><h3>YEARLY RETURN</h3><div class="kpi-value positive" id="risk-yearly">+22.51%</div></div>
+                    <div class="kpi-card"><h3>VOLATILITY</h3><div class="kpi-value" id="risk-volatility">1.22%</div></div>
+                    <div class="kpi-card"><h3>LATEST PRICE</h3><div class="kpi-value" id="risk-latest">₹ 2400.00</div></div>
+                </div>
+                <div class="section-card" style="margin-top:20px;">
+                    <h3>Sector performance vs Loss</h3>
+                    <div class="chart-container" style="height: 200px;">
+                        <canvas id="sectorChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card" style="margin-top:20px;">
+            <div style="display:flex; justify-content: space-between;">
+                <h3>Asset Explorer</h3>
+                <button class="text-btn">View Global Market</button>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr><th>ASSET</th><th>TYPE</th><th>RISK</th><th>STABILITY</th><th>RETURNS</th><th>ACTION</th></tr>
+                </thead>
+                <tbody id="assets-table-body">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
