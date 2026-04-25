@@ -6,6 +6,7 @@ export default function StockSearch() {
   const { stockname } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState('1M');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,8 +46,29 @@ export default function StockSearch() {
   }
 
   const hist = data?.history || [];
-  const latestPrice = hist.length > 0 ? hist[hist.length - 1].close : 0;
-  const startPrice = hist.length > 0 ? hist[0].close : 0;
+  
+  const filterHistory = (history, range) => {
+    if (!history.length) return [];
+    const latestDate = new Date(history[history.length - 1].date);
+    
+    let cutoffDate = new Date(latestDate);
+    if (range === '1D') cutoffDate.setDate(cutoffDate.getDate() - 1);
+    else if (range === '1W') cutoffDate.setDate(cutoffDate.getDate() - 7);
+    else if (range === '1M') cutoffDate.setMonth(cutoffDate.getMonth() - 1);
+    else if (range === '3M') cutoffDate.setMonth(cutoffDate.getMonth() - 3);
+    else if (range === '6M') cutoffDate.setMonth(cutoffDate.getMonth() - 6);
+    else if (range === '1Y') cutoffDate.setFullYear(cutoffDate.getFullYear() - 1);
+    else if (range === '3Y') cutoffDate.setFullYear(cutoffDate.getFullYear() - 3);
+    else if (range === '5Y') cutoffDate.setFullYear(cutoffDate.getFullYear() - 5);
+    else return history; // For 'MAX'
+
+    return history.filter(d => new Date(d.date) >= cutoffDate);
+  };
+
+  const filteredHist = filterHistory(hist, timeRange);
+
+  const latestPrice = filteredHist.length > 0 ? filteredHist[filteredHist.length - 1].close : 0;
+  const startPrice = filteredHist.length > 0 ? filteredHist[0].close : 0;
   const priceChange = latestPrice - startPrice;
   const pctChange = startPrice ? (priceChange / startPrice) * 100 : 0;
   
@@ -92,7 +114,7 @@ export default function StockSearch() {
             
             <div className="h-[300px] w-full mt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={hist}>
+                <LineChart data={filteredHist}>
                   <XAxis 
                      dataKey="date" 
                      tickFormatter={(tick) => new Date(tick).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
@@ -125,8 +147,14 @@ export default function StockSearch() {
             </div>
             
             <div className="flex gap-2 mt-4 border-t border-slate-100 pt-4">
-              {['1D', '1W', '1M', '3M', '6M', '1Y', '3Y', '5Y', 'All'].map(t => (
-                <button key={t} className="text-xs font-semibold px-3 py-1 rounded-full text-slate-600 hover:bg-slate-100">{t}</button>
+              {['1D', '1W', '1M', '3M', '6M', '1Y', '3Y', '5Y', 'MAX'].map(t => (
+                <button 
+                   key={t} 
+                   onClick={() => setTimeRange(t)}
+                   className={`text-xs font-semibold px-3 py-1 rounded-full ${timeRange === t ? 'bg-[#059669] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                   {t}
+                </button>
               ))}
             </div>
           </div>

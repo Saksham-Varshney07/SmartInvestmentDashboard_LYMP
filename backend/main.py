@@ -47,9 +47,7 @@ def run_single_analysis(symbol: str, db: Session=Depends(get_db)):
     """
     symbol = symbol.upper()
     try:
-        end = datetime.now()
-        start = end - timedelta(days=365 * 2)
-        raw_df = get_stock_data([symbol], start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+        raw_df = get_stock_data([symbol], period="max")
         if raw_df.empty:
             raise HTTPException(status_code=404, detail=f'No data available for symbol {symbol}')
         final_output, full_processed_df = run_pipeline(raw_df)
@@ -86,9 +84,7 @@ def execute_pipeline(db: Session=Depends(get_db)):
     """
     try:
         symbols = ['RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'TATAMOTORS.NS', 'ITC.NS', 'ICICIBANK.NS', 'SBIN.NS', 'BHARTIARTL.NS', 'HINDUNILVR.NS']
-        end = datetime.now()
-        start = end - timedelta(days=365 * 2)
-        raw_df = get_stock_data(symbols, start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d'))
+        raw_df = get_stock_data(symbols, period="max")
         if raw_df.empty:
             raise HTTPException(status_code=500, detail='Data scraping failed.')
         final_output, full_processed_df = run_pipeline(raw_df)

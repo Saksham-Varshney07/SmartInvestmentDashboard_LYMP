@@ -2,11 +2,14 @@ import yfinance as yf
 import pandas as pd
 import time
 
-def fetch_data(symbol, start, end, retries=3):
+def fetch_data(symbol, start=None, end=None, period="max", retries=3):
     for attempt in range(retries):
         try:
             print(f'Fetching {symbol}... (Attempt {attempt + 1})')
-            df = yf.download(symbol, start=start, end=end, progress=False)
+            if start and end:
+                df = yf.download(symbol, start=start, end=end, progress=False)
+            else:
+                df = yf.download(symbol, period=period, progress=False)
             if not df.empty:
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.droplevel(1)
@@ -21,10 +24,10 @@ def fetch_data(symbol, start, end, retries=3):
     print(f'Failed to fetch {symbol}')
     return pd.DataFrame()
 
-def get_stock_data(symbols_list, start_date, end_date):
+def get_stock_data(symbols_list, start_date=None, end_date=None, period="max"):
     all_data = []
     for sym in symbols_list:
-        df = fetch_data(sym, start_date, end_date)
+        df = fetch_data(sym, start_date, end_date, period)
         if not df.empty:
             all_data.append(df)
         time.sleep(0.5)
