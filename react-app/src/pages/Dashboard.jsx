@@ -71,10 +71,10 @@ export default function Dashboard() {
             <span className="text-xl font-bold tracking-tight text-slate-900">Smart Investment Dashboard</span>
             <nav className="hidden md:flex gap-6 items-center">
               <Link className={activeNavClass} to="/">Dashboard</Link>
-              <nav className={navClass}>Risk Analysis</nav>
-              <nav className={navClass}>Portfolio</nav>
+              <Link className={navClass} to="/riskanalysis">Risk Analysis</Link>
+              <Link className={navClass} to="/portfolio">Portfolio</Link>
               <Link className={navClass} to="/sipplanner">SIP Planner</Link>
-              <nav className={navClass}>Asset Explorer</nav>
+              <Link className={navClass} to="/assetexplorer">Asset Explorer</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4 relative" ref={searchRef}>
