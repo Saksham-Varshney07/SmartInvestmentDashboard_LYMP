@@ -7,17 +7,23 @@ export default function StockSearch() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('1M');
+  const [fetchError, setFetchError] = useState(null);
+  const [showReasoning, setShowReasoning] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        setFetchError(null);
         const response = await fetch(`http://127.0.0.1:8000/api/analyze/${stockname}`);
         const result = await response.json();
-        
-        
-        setData(result);
+        if (!response.ok) {
+          setFetchError(result.detail || 'Server error');
+        } else {
+          setData(result);
+        }
       } catch (err) {
+        setFetchError('Could not connect to the analysis server. Make sure the backend is running.');
         console.error(err);
       } finally {
         setLoading(false);
@@ -31,6 +37,29 @@ export default function StockSearch() {
       <div className="min-h-screen flex flex-col items-center justify-center p-12 text-slate-500 bg-[#f8f9fa]">
          <span className="material-symbols-outlined text-4xl mb-4 animate-spin">data_usage</span>
          <p>Fetching live market data and fundamentals...</p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-12 bg-[#f8f9fa]">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-xl flex items-start gap-3 max-w-md">
+          <span className="material-symbols-outlined mt-0.5">error</span>
+          <div>
+            <p className="font-bold mb-1">Analysis Failed</p>
+            <p className="text-sm">{fetchError}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-12 text-slate-500 bg-[#f8f9fa]">
+        <span className="material-symbols-outlined text-4xl mb-4 text-slate-300">search_off</span>
+        <p>No data returned for <strong>{stockname}</strong>. The symbol may be invalid.</p>
       </div>
     );
   }
@@ -75,6 +104,26 @@ export default function StockSearch() {
   const isPositive = priceChange >= 0;
   
   const f = data?.fundamentals || {};
+  const r = data?.analysis || {};
+
+  const riskMeta = {
+    High: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: 'warning', dot: 'bg-red-500' },
+    Moderate: { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', icon: 'info', dot: 'bg-yellow-500' },
+    Low: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', icon: 'verified_user', dot: 'bg-emerald-500' },
+  };
+  const rm = riskMeta[r.risk] || riskMeta['Moderate'];
+
+  const aiReasoning = () => {
+    const parts = [];
+    const vol = r.volatility ? (r.volatility * 100).toFixed(1) : null;
+    const ar = r.anomaly_ratio ? (r.anomaly_ratio * 100).toFixed(1) : null;
+    const yr = r.yearly_return;
+    if (vol) parts.push(`Volatility is ${vol}% (market avg ~15%). ${Number(vol) > 25 ? 'This is significantly above average — the stock swings wildly.' : 'This is within an acceptable range.'}`);
+    if (ar) parts.push(`Isolation Forest flagged anomalous trading sessions in ${ar}% of the last year. ${Number(ar) > 20 ? 'High anomaly frequency signals unpredictable behavior.' : 'Low anomaly frequency means the stock trades predictably.'}`);
+    if (yr !== undefined) parts.push(`Yearly return is ${yr}%. ${yr > 10 ? 'Strong historical returns support its classification.' : yr < 0 ? 'Negative returns add to downside risk.' : 'Returns are modest but stable.'}`);
+    return parts;
+  };
+
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] antialiased font-['Inter']">
@@ -244,9 +293,99 @@ export default function StockSearch() {
         </div>
 
         
-        <div>
+        <div className="space-y-5">
            
-           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center sticky top-24">
+           {/* USP 1: AI Risk Classification Badge */}
+           {r.risk && (
+             <div className={`rounded-xl border p-5 ${rm.bg} ${rm.border}`}>
+               <div className="flex items-center justify-between mb-3">
+                 <div className="flex items-center gap-2">
+                   <span className={`material-symbols-outlined ${rm.text}`}>{rm.icon}</span>
+                   <span className="font-bold text-slate-800">AI Risk Classification</span>
+                 </div>
+                 <span className={`flex items-center gap-1.5 text-sm font-bold px-3 py-1 rounded-full ${rm.bg} ${rm.text} border ${rm.border}`}>
+                   <span className={`w-2 h-2 rounded-full ${rm.dot} animate-pulse`}></span>
+                   {r.risk} Risk
+                 </span>
+               </div>
+               <div className="flex gap-1 mt-2">
+                 {Array.from({length: 5}).map((_, i) => (
+                   <span key={i} className={`material-symbols-outlined text-base ${i < (r.stars || 0) ? 'text-yellow-400' : 'text-slate-200'}`}>star</span>
+                 ))}
+                 <span className="text-xs text-slate-500 ml-1 self-center">{r.stars}/5 AI Score</span>
+               </div>
+             </div>
+           )}
+
+           {/* USP 2: Stability Analysis Card */}
+           {r.stability && (
+             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+               <h4 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
+                 <span className="material-symbols-outlined text-indigo-500">show_chart</span>
+                 Stability Analysis
+               </h4>
+               <div className="flex items-center justify-between mb-4">
+                 <span className="text-sm text-slate-500">Stability Rating</span>
+                 <span className={`text-sm font-bold px-3 py-1 rounded-full ${r.stability === 'Stable' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                   {r.stability}
+                 </span>
+               </div>
+               <div className="space-y-3 text-sm">
+                 <div className="flex justify-between">
+                   <span className="text-slate-500">Volatility</span>
+                   <span className="font-semibold">{r.volatility ? `${(r.volatility*100).toFixed(2)}%` : '-'}</span>
+                 </div>
+                 <div className="flex justify-between">
+                   <span className="text-slate-500">Anomaly Frequency</span>
+                   <span className="font-semibold">{r.anomaly_ratio !== undefined ? `${(r.anomaly_ratio*100).toFixed(1)}%` : '-'}</span>
+                 </div>
+                 <div className="flex justify-between">
+                   <span className="text-slate-500">Yearly Return</span>
+                   <span className={`font-semibold ${r.yearly_return >= 0 ? 'text-green-700' : 'text-red-600'}`}>{r.yearly_return !== undefined ? `${r.yearly_return}%` : '-'}</span>
+                 </div>
+                 <div className="flex justify-between">
+                   <span className="text-slate-500">Trend</span>
+                   <span className="font-semibold capitalize">{r.trend || '-'}</span>
+                 </div>
+               </div>
+               <p className="mt-4 text-xs text-slate-400 italic border-t border-slate-100 pt-3">
+                 {r.stability === 'Stable' ? '✓ This asset shows consistent, predictable behavior — ideal for medium-term holding.' : '⚠ This asset shows irregular trading patterns. Not recommended for low-risk portfolios.'}
+               </p>
+             </div>
+           )}
+
+           {/* USP 6: Explainable AI */}
+           {r.risk && (
+             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+               <button
+                 onClick={() => setShowReasoning(!showReasoning)}
+                 className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors"
+               >
+                 <div className="flex items-center gap-2">
+                   <span className="material-symbols-outlined text-blue-600">psychology</span>
+                   <span className="font-bold text-slate-900 text-sm">Why is this risk {r.risk}?</span>
+                 </div>
+                 <span className="material-symbols-outlined text-slate-400 transition-transform" style={{transform: showReasoning ? 'rotate(180deg)' : 'rotate(0)'}}>
+                   expand_more
+                 </span>
+               </button>
+               {showReasoning && (
+                 <div className="px-5 pb-5 border-t border-slate-100">
+                   <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mt-4 mb-3">AI Reasoning (Explainable AI)</p>
+                   <ul className="space-y-3">
+                     {aiReasoning().map((reason, i) => (
+                       <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                         <span className="material-symbols-outlined text-blue-400 text-base mt-0.5 shrink-0">arrow_right</span>
+                         {reason}
+                       </li>
+                     ))}
+                   </ul>
+                 </div>
+               )}
+             </div>
+           )}
+
+           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center">
               <div className="w-48 h-32 mx-auto bg-blue-50 rounded-lg flex items-center justify-center text-blue-300 mb-6 border border-blue-100">
                  <span className="material-symbols-outlined text-6xl">location_city</span>
               </div>

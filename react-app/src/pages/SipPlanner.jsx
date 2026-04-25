@@ -34,7 +34,7 @@ export default function SipPlanner() {
   const { investedAmount, estReturns, totalValue } = calculateSIP();
 
   const data = [
-    { name: 'Invested amount', value: investedAmount, fill: '#e2e8f0' },
+    { name: 'Invested amount', value: investedAmount, fill: '#91bc4bff' },
     { name: 'Est. returns', value: estReturns, fill: '#4f46e5' }, // Indigo color matching screenshots
   ];
 
@@ -97,14 +97,8 @@ export default function SipPlanner() {
                <div className="mb-10">
                   <div className="flex justify-between items-center mb-6">
                      <label className="font-semibold text-slate-700">Monthly investment</label>
-                     <div className="bg-emerald-50 text-emerald-700 font-bold px-4 py-2 rounded-lg min-w-[120px] flex items-center justify-end shadow-inner">
-                        <span>₹</span>
-                        <input 
-                           type="number" 
-                           value={monthlyInvestment}
-                           onChange={(e) => setMonthlyInvestment(Number(e.target.value))}
-                           className="bg-transparent border-none p-0 text-right font-bold focus:ring-0 w-24 text-emerald-700 outline-none"
-                        />
+                     <div className="bg-emerald-50 text-emerald-700 font-bold px-4 py-2 rounded-lg min-w-[120px] text-right">
+                        ₹ {monthlyInvestment.toLocaleString('en-IN')}
                      </div>
                   </div>
                   <input 
@@ -119,14 +113,8 @@ export default function SipPlanner() {
                <div className="mb-10">
                   <div className="flex justify-between items-center mb-6">
                      <label className="font-semibold text-slate-700">Expected return rate (p.a)</label>
-                     <div className="bg-emerald-50 text-emerald-700 font-bold px-4 py-2 rounded-lg min-w-[120px] flex items-center justify-end shadow-inner">
-                        <input 
-                           type="number" 
-                           value={returnRate}
-                           onChange={(e) => setReturnRate(Number(e.target.value))}
-                           className="bg-transparent border-none p-0 text-right font-bold focus:ring-0 w-16 text-emerald-700 outline-none"
-                        />
-                        <span className="ml-1">%</span>
+                     <div className="bg-emerald-50 text-emerald-700 font-bold px-4 py-2 rounded-lg min-w-[120px] text-right">
+                        {returnRate}%
                      </div>
                   </div>
                   <input 
@@ -141,14 +129,8 @@ export default function SipPlanner() {
                <div className="mb-10">
                   <div className="flex justify-between items-center mb-6">
                      <label className="font-semibold text-slate-700">Time period</label>
-                     <div className="bg-emerald-50 text-emerald-700 font-bold px-4 py-2 rounded-lg min-w-[120px] flex items-center justify-end shadow-inner">
-                        <input 
-                           type="number" 
-                           value={timePeriod}
-                           onChange={(e) => setTimePeriod(Number(e.target.value))}
-                           className="bg-transparent border-none p-0 text-right font-bold focus:ring-0 w-16 text-emerald-700 outline-none"
-                        />
-                        <span className="ml-1">Yr</span>
+                     <div className="bg-emerald-50 text-emerald-700 font-bold px-4 py-2 rounded-lg min-w-[120px] text-right">
+                        {timePeriod}Yr
                      </div>
                   </div>
                   <input 

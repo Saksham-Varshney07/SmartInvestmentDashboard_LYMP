@@ -27,8 +27,9 @@ def feature_engineering(df):
         return df
     df['Returns'] = df.groupby('Symbol')['Close'].pct_change()
     df['Volatility'] = df.groupby('Symbol')['Returns'].transform(lambda x: x.rolling(window=14).std())
+    df['Yearly_Return'] = df.groupby('Symbol')['Close'].pct_change(periods=252)
     first_price = df.groupby('Symbol')['Close'].transform('first')
-    df['Yearly_Return'] = (df['Close'] - first_price) / first_price
+    df['Yearly_Return'] = df['Yearly_Return'].fillna((df['Close'] - first_price) / first_price)
     df['Average_Price'] = df.groupby('Symbol')['Close'].transform('mean')
     df['Trend'] = np.where(df['Close'] > df['Average_Price'], 'Uptrend', 'Downtrend')
     df.dropna(inplace=True)
@@ -46,7 +47,7 @@ def train_isolation_forest(df):
     X = df[features].copy()
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-    model = IsolationForest(contamination=0.05, random_state=42)
+    model = IsolationForest(contamination='auto', random_state=42)
     model.fit(X_scaled)
     df['Anomaly_Flag'] = model.predict(X_scaled)
     return (df, model)
@@ -69,16 +70,17 @@ def analyze_risk_and_stability(df):
         yearly_return = latest_record['Yearly_Return'] * 100
         volatility = latest_record['Volatility']
         trend = latest_record['Trend']
-        high_anomaly_threshold = 0.1
+        high_anomaly_threshold = 0.10
         high_volatility_threshold = 0.03
         if anomaly_ratio > high_anomaly_threshold or volatility > high_volatility_threshold:
             stability = 'Unstable'
         else:
             stability = 'Stable'
+            
         if yearly_return < -10 or anomaly_ratio > high_anomaly_threshold:
             risk = 'High Risk'
             stars = 2 if yearly_return > -20 else 1
-        elif anomaly_ratio > 0.05 or volatility > 0.02:
+        elif anomaly_ratio > 0.05 or volatility > 0.025:
             risk = 'Medium Risk'
             stars = 3
         else:

@@ -301,6 +301,41 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* USP 4: Data → ML → Insight Pipeline Strip */}
+        <div className="mt-10 mx-0">
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden">
+            <span className="material-symbols-outlined absolute -right-8 -bottom-8 text-[160px] text-slate-700/20">account_tree</span>
+            <div className="relative z-10">
+              <p className="text-xs font-bold tracking-widest text-slate-400 uppercase mb-2">How Our AI Works</p>
+              <h2 className="text-2xl font-bold mb-8">The Intelligence Pipeline</h2>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-0">
+                {[
+                  { icon: 'storage', label: 'Raw Market Data', sub: 'yfinance · NSE/BSE · Crypto', color: 'text-blue-400' },
+                  { icon: 'build', label: 'Feature Engineering', sub: 'Returns · Volatility · Trend', color: 'text-purple-400' },
+                  { icon: 'psychology', label: 'Isolation Forest', sub: 'Anomaly Detection · ML Model', color: 'text-indigo-400' },
+                  { icon: 'label', label: 'Risk Labels', sub: 'High · Moderate · Low Risk', color: 'text-yellow-400' },
+                  { icon: 'dashboard', label: 'Your Dashboard', sub: 'Insights · Charts · Advice', color: 'text-green-400' },
+                ].map((step, i, arr) => (
+                  <React.Fragment key={step.label}>
+                    <div className="flex flex-col items-center text-center min-w-[120px]">
+                      <div className={`w-14 h-14 rounded-xl bg-slate-700 flex items-center justify-center mb-3 border border-slate-600`}>
+                        <span className={`material-symbols-outlined text-2xl ${step.color}`}>{step.icon}</span>
+                      </div>
+                      <p className="text-sm font-bold text-white leading-tight">{step.label}</p>
+                      <p className="text-xs text-slate-400 mt-1 leading-tight">{step.sub}</p>
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div className="flex-1 flex items-center justify-center px-2 py-6 sm:py-0">
+                        <span className="material-symbols-outlined text-slate-600 text-2xl rotate-90 sm:rotate-0">arrow_forward</span>
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
 
       
