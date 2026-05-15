@@ -27,3 +27,11 @@ screenshots to attach/Main Dashboard.png
 screenshots to attach/Multi-Asset Unified System(asset explorer).png
 screenshots to attach/Stock Search Analysis.png
 screenshots to attach/Stock Search Results.png
+
+# .NET / C#
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
