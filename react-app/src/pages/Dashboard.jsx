@@ -4,9 +4,10 @@ import { useNavigate, Link } from 'react-router-dom';
 export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const searchRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
   const navigate = useNavigate();
 
   
@@ -20,9 +21,11 @@ export default function Dashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSearchChange = async (e) => {
+  const handleSearchChange = (e) => {
     const val = e.target.value;
     setSearchTerm(val);
+    
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     
     if (val.length < 2) {
       setSuggestions([]);
@@ -30,17 +33,20 @@ export default function Dashboard() {
       return;
     }
 
-    try {
-      setIsSearching(true);
-      setShowSuggestions(true);
-      const res = await fetch(`http://127.0.0.1:8000/api/search?q=${val}`);
-      const data = await res.json();
-      setSuggestions(data.results || []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsSearching(false);
-    }
+    setIsSearching(true);
+    setShowSuggestions(true);
+    
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`http://127.0.0.1:8000/api/search?q=${val}`);
+        const data = await res.json();
+        setSuggestions(data.results || []);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400); // 400ms debounce
   };
 
   const selectSymbol = (symbol) => {
@@ -254,15 +260,15 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-6">
               <h4 className="text-lg font-bold text-slate-900">Portfolio Performance</h4>
             </div>
-            <div className="h-[300px] w-full bg-surface-container-low rounded-lg relative overflow-hidden flex items-end">
-              <div className="absolute inset-0 p-6 flex flex-col justify-between">
+            <div className="h-[300px] w-full bg-surface-container-low rounded-lg relative overflow-hidden flex items-end group">
+              <div className="absolute inset-0 p-6 flex flex-col justify-between opacity-30">
                 <div className="border-t border-slate-200/50 w-full"></div>
                 <div className="border-t border-slate-200/50 w-full"></div>
                 <div className="border-t border-slate-200/50 w-full"></div>
                 <div className="border-t border-slate-200/50 w-full"></div>
                 <div className="border-t border-slate-200/50 w-full"></div>
               </div>
-              <svg className="w-full h-full p-0 relative z-10" preserveAspectRatio="none" viewBox="0 0 400 100">
+              <svg className="w-full h-full p-0 relative z-10 opacity-30 grayscale blur-[2px]" preserveAspectRatio="none" viewBox="0 0 400 100">
                 <path d="M0,80 Q50,75 100,50 T200,40 T300,20 T400,10" fill="none" stroke="#005daa" strokeWidth="3"></path>
                 <path d="M0,80 Q50,75 100,50 T200,40 T300,20 T400,10 L400,100 L0,100 Z" fill="url(#grad1)" opacity="0.1"></path>
                 <defs>
@@ -272,6 +278,14 @@ export default function Dashboard() {
                   </linearGradient>
                 </defs>
               </svg>
+              {/* Disclaimer Overlay */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-white/40 backdrop-blur-[2px]">
+                 <div className="bg-white px-6 py-4 rounded-xl shadow-lg border border-slate-200 flex flex-col items-center text-center max-w-[250px]">
+                    <span className="material-symbols-outlined text-amber-500 text-3xl mb-2">construction</span>
+                    <p className="font-bold text-slate-800 text-sm mb-1">Coming Soon</p>
+                    <p className="text-xs text-slate-500">Live portfolio synchronization is currently under construction.</p>
+                 </div>
+              </div>
             </div>
           </div>
           
