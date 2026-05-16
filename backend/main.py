@@ -12,6 +12,23 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
 import collections
+import yfinance as yf
+
+class TransactionRequest(BaseModel):
+    user_id: int
+    symbol: str
+    transaction_type: str
+    shares: float
+    price_at_purchase: float
+
+class TransactionEditRequest(BaseModel):
+    symbol: str
+    transaction_type: str
+    shares: float
+    price_at_purchase: float
+
+class LoginRequest(BaseModel):
+    username: str
 
 app = FastAPI(title='Risk Analysis System API')
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
@@ -100,11 +117,175 @@ def execute_pipeline(db: Session=Depends(get_db)):
             analysis_entry = models.AssetAnalysis(**item)
             db.merge(analysis_entry)
         db.commit()
-        return {'status': 'success', 'processed_assets': len(final_output)}
+        return {'status': 'success', 'message': f'Pipeline executed successfully for {len(final_output)} assets.'}
     except Exception as e:
         db.rollback()
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post('/api/login')
+def login(req: LoginRequest, db: Session=Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == req.username).first()
+    if not user:
+        user = models.User(username=req.username)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return {'status': 'success', 'user_id': user.id, 'username': user.username}
+
+@app.post('/api/portfolio/transaction')
+def add_transaction(req: TransactionRequest, db: Session=Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == req.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    tx = models.PortfolioTransaction(
+        user_id=req.user_id,
+        symbol=req.symbol.upper(),
+        transaction_type=req.transaction_type.upper(),
+        shares=req.shares,
+        price_at_purchase=req.price_at_purchase
+    )
+    db.add(tx)
+    db.commit()
+    return {'status': 'success', 'message': 'Transaction added'}
+
+@app.put('/api/portfolio/transaction/{tx_id}')
+def edit_transaction(tx_id: int, req: TransactionEditRequest, db: Session=Depends(get_db)):
+    tx = db.query(models.PortfolioTransaction).filter(models.PortfolioTransaction.id == tx_id).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    tx.symbol = req.symbol.upper()
+    tx.transaction_type = req.transaction_type.upper()
+    tx.shares = req.shares
+    tx.price_at_purchase = req.price_at_purchase
+    
+    db.commit()
+    return {'status': 'success', 'message': 'Transaction updated'}
+
+@app.delete('/api/portfolio/transaction/{tx_id}')
+def delete_transaction(tx_id: int, db: Session=Depends(get_db)):
+    tx = db.query(models.PortfolioTransaction).filter(models.PortfolioTransaction.id == tx_id).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    db.delete(tx)
+    db.commit()
+    return {'status': 'success', 'message': 'Transaction deleted'}
+
+# Simple memory cache for live prices to avoid Yahoo rate limits (expires every 1 minute)
+price_cache = {}
+@app.get('/api/portfolio/{user_id}')
+def get_portfolio(user_id: int, db: Session=Depends(get_db)):
+    transactions = db.query(models.PortfolioTransaction).filter(models.PortfolioTransaction.user_id == user_id).all()
+    
+    holdings = {}
+    for tx in transactions:
+        sym = tx.symbol
+        if sym not in holdings:
+            holdings[sym] = {'shares': 0.0, 'total_invested': 0.0, 'history': []}
+        
+        if tx.transaction_type == 'BUY':
+            holdings[sym]['shares'] += tx.shares
+            holdings[sym]['total_invested'] += (tx.shares * tx.price_at_purchase)
+        elif tx.transaction_type == 'SELL':
+            holdings[sym]['shares'] -= tx.shares
+            # Simple avg cost reduction
+            if holdings[sym]['shares'] <= 0:
+                holdings[sym]['total_invested'] = 0.0
+            
+        holdings[sym]['history'].append({
+            'type': tx.transaction_type,
+            'shares': tx.shares,
+            'price': tx.price_at_purchase,
+            'date': tx.timestamp
+        })
+
+    # Filter out empty holdings
+    holdings = {k: v for k, v in holdings.items() if v['shares'] > 0}
+    
+    total_investment = 0.0
+    current_portfolio_value = 0.0
+    asset_allocation = {}
+    
+    # Fetch live prices
+    symbols_to_fetch = list(holdings.keys())
+    live_prices = {}
+    
+    now = datetime.now()
+    for sym in symbols_to_fetch:
+        # Check cache
+        if sym in price_cache and (now - price_cache[sym]['time']).total_seconds() < 60:
+            live_prices[sym] = price_cache[sym]['price']
+        else:
+            try:
+                # Fetch fast price
+                ticker = yf.Ticker(sym)
+                info = ticker.fast_info
+                price = getattr(info, 'last_price', 0)
+                if price == 0:
+                    price = getattr(info, 'previous_close', 0)
+                live_prices[sym] = price
+                price_cache[sym] = {'price': price, 'time': now}
+            except:
+                # Fallback to historical db or purchase price if yf fails
+                live_prices[sym] = holdings[sym]['total_invested'] / holdings[sym]['shares'] if holdings[sym]['shares'] > 0 else 0
+                
+    assets = []
+    for sym, data in holdings.items():
+        shares = data['shares']
+        invested = data['total_invested']
+        live_price = live_prices.get(sym, 0)
+        current_val = shares * live_price
+        profit = current_val - invested
+        profit_pct = (profit / invested * 100) if invested > 0 else 0
+        
+        total_investment += invested
+        current_portfolio_value += current_val
+        
+        assets.append({
+            'symbol': sym,
+            'shares': shares,
+            'invested': invested,
+            'current_value': current_val,
+            'live_price': live_price,
+            'profit': profit,
+            'profit_pct': profit_pct,
+            'history': data['history']
+        })
+        
+    total_profit = current_portfolio_value - total_investment
+    total_profit_pct = (total_profit / total_investment * 100) if total_investment > 0 else 0
+    
+    # Calculate allocation
+    for asset in assets:
+        asset['allocation_pct'] = (asset['current_value'] / current_portfolio_value * 100) if current_portfolio_value > 0 else 0
+        
+    # Get recent activity (last 5)
+    recent_activity = []
+    for tx in reversed(transactions[-5:]):
+        recent_activity.append({
+            'id': tx.id,
+            'symbol': tx.symbol,
+            'type': tx.transaction_type,
+            'shares': tx.shares,
+            'price': tx.price_at_purchase,
+            'total': tx.shares * tx.price_at_purchase,
+            'date': tx.timestamp
+        })
+
+    return {
+        'status': 'success',
+        'summary': {
+            'total_investment': total_investment,
+            'portfolio_value': current_portfolio_value,
+            'total_profit': total_profit,
+            'total_profit_pct': total_profit_pct
+        },
+        'assets': assets,
+        'recent_activity': recent_activity
+    }
 
 @app.get('/api/assets')
 def get_assets(db: Session=Depends(get_db)):
