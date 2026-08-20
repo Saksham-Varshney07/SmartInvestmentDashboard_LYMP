@@ -1,22 +1,26 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, BigInteger, Numeric, Date
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from .db import Base
+from db import Base
 
-class MarketData(Base):
-    __tablename__ = 'market_data'
-    symbol = Column(String, primary_key=True, index=True)
-    date = Column(DateTime, primary_key=True)
-    open = Column(Float)
-    high = Column(Float)
-    low = Column(Float)
-    close = Column(Float)
-    volume = Column(Float)
+# Postgres: asset_prices (Replaces old MarketData)
+class AssetPrice(Base):
+    __tablename__ = 'asset_prices'
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ticker = Column(String, index=True, nullable=False)
+    date = Column(DateTime, nullable=False)
+    open = Column(Numeric(18, 8))
+    high = Column(Numeric(18, 8))
+    low = Column(Numeric(18, 8))
+    close = Column(Numeric(18, 8))
+    volume = Column(BigInteger)
 
-class AssetAnalysis(Base):
-    __tablename__ = 'asset_analysis'
-    asset = Column(String, primary_key=True, index=True)
-    risk = Column(String)
+# Postgres: risk_scores (Replaces old AssetAnalysis)
+class RiskScore(Base):
+    __tablename__ = 'risk_scores'
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ticker = Column(String, index=True, nullable=False)
+    risk_level = Column(String)
     stability = Column(String)
     trend = Column(String)
     returns = Column(Float)
@@ -26,22 +30,36 @@ class AssetAnalysis(Base):
     latest_price = Column(Float)
     anomaly_ratio = Column(Float)
     stars = Column(Integer)
+    created_at = Column(DateTime, default=func.now())
 
 class User(Base):
     __tablename__ = 'users'
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    full_name = Column(String)
+    risk_profile = Column(String)
+    investment_horizon = Column(String)
+    created_at = Column(DateTime, default=func.now())
     
-    transactions = relationship("PortfolioTransaction", back_populates="user")
+    portfolios = relationship("Portfolio", back_populates="user")
 
-class PortfolioTransaction(Base):
-    __tablename__ = 'portfolio_transactions'
-    id = Column(Integer, primary_key=True, index=True)
+class Portfolio(Base):
+    __tablename__ = 'portfolio'
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    portfolio_name = Column(String, nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'))
-    symbol = Column(String, index=True)
-    transaction_type = Column(String) # 'BUY' or 'SELL'
-    shares = Column(Float)
-    price_at_purchase = Column(Float)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, default=func.now())
+    
+    user = relationship("User", back_populates="portfolios")
+    assets = relationship("PortfolioAsset", back_populates="portfolio")
 
-    user = relationship("User", back_populates="transactions")
+class PortfolioAsset(Base):
+    __tablename__ = 'portfolio_assets'
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    portfolio_id = Column(Integer, ForeignKey('portfolio.id'))
+    ticker = Column(String, index=True)
+    shares = Column(Float)
+    purchase_price = Column(Float)
+    purchase_date = Column(DateTime, default=func.now())
+
+    portfolio = relationship("Portfolio", back_populates="assets")

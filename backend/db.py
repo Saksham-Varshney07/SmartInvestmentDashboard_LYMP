@@ -1,7 +1,10 @@
 import os
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///./investment_risk.db')
+
+# Member 3 Task: Link to PostgreSQL
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:sidd123@localhost:5432/postgres')
+
 engine = None
 SessionLocal = None
 Base = declarative_base()
@@ -9,10 +12,10 @@ Base = declarative_base()
 def init_db():
     global engine, SessionLocal
     try:
-        connect_args = {'check_same_thread': False, 'timeout': 15} if 'sqlite' in DATABASE_URL else {}
-        engine = create_engine(DATABASE_URL, connect_args=connect_args)
+        engine = create_engine(DATABASE_URL)
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        from . import models
+        import models
+        # Creates tables based on updated models.py
         Base.metadata.create_all(bind=engine)
         print('Database connected and tables created successfully.')
     except Exception as e:

@@ -1,14 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import { AuthContext } from '../context/AuthContext';
 
 export default function RiskAnalysis() {
-  const [step, setStep] = useState(1);
-  const [budget, setBudget] = useState(500000);
-  const [duration, setDuration] = useState(5);
+  const { currentUser } = useContext(AuthContext);
+
+  const mapRisk = (profile) => {
+    if (profile === 'Defender') return 'The Defender';
+    if (profile === 'Aggressor') return 'The Aggressor';
+    return 'Balanced';
+  };
+  const mapDuration = (horizon) => {
+    if (horizon === 'Short-term') return 2;
+    if (horizon === 'Long-term') return 10;
+    return 5;
+  };
+
+  const [step, setStep] = useState(currentUser?.risk_profile ? 2 : 1);
+  const [budget, setBudget] = useState(100000);
+  const [duration, setDuration] = useState(currentUser?.investment_horizon ? mapDuration(currentUser.investment_horizon) : 5);
   const [stockInput, setStockInput] = useState('');
   const [stocks, setStocks] = useState(['RELIANCE.NS', 'TCS.NS', 'INFY.NS']);
-  const [riskProfile, setRiskProfile] = useState('Balanced');
+  const [riskProfile, setRiskProfile] = useState(currentUser?.risk_profile ? mapRisk(currentUser.risk_profile) : 'Balanced');
   
   const [loading, setLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -124,21 +138,6 @@ export default function RiskAnalysis() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] text-slate-800 antialiased font-['Inter']">
-      
-      {/* Header */}
-      <header className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200">
-        <div className="flex justify-between items-center max-w-[1440px] mx-auto px-6 h-16">
-          <div className="flex items-center gap-8">
-             <Link to="/" className="text-xl font-bold tracking-tight text-slate-900">Smart Investment Dashboard</Link>
-             <nav className="hidden md:flex gap-6 items-center">
-                <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium tracking-tight" to="/">Dashboard</Link>
-                <Link className="text-blue-600 font-semibold border-b-2 border-blue-600 pb-1 text-sm tracking-tight" to="/riskanalysis">Risk Analysis</Link>
-                <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium tracking-tight" to="/portfolio">Portfolio</Link>
-                <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium tracking-tight" to="/sipplanner">SIP Planner</Link>
-             </nav>
-          </div>
-        </div>
-      </header>
 
       <main className="max-w-[1240px] mx-auto px-6 py-24 pb-32">
         <div className="flex items-center gap-3 mb-8">

@@ -5,21 +5,29 @@ import StockSearch from './pages/StockSearch';
 import RiskAnalysis from './pages/RiskAnalysis';
 import Portfolio from './pages/Portfolio';
 import AssetExplorer from './pages/AssetExplorer';
+import Account from './pages/Account';
+
+import { AuthProvider } from './context/AuthContext';
+import Layout from './components/Layout';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/sipplanner" element={<SipPlanner />} />
-        <Route path="/search/:stockname" element={<StockSearch />} />
-        
-        <Route path="/riskanalysis" element={<RiskAnalysis />} />
-        <Route path="/portfolio" element={<Portfolio />} />
-        <Route path="/assetexplorer" element={<AssetExplorer />} />
-        <Route path="/:stockname" element={<StockSearch />} />
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/account" element={<Account />} />
+            <Route path="/sipplanner" element={<SipPlanner />} />
+            <Route path="/search/:stockname" element={<StockSearch />} />
+            <Route path="/riskanalysis" element={<RiskAnalysis />} />
+            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/assetexplorer" element={<AssetExplorer />} />
+            <Route path="/:stockname" element={<StockSearch />} />
+          </Routes>
+        </Layout>
+      </Router>
+    </AuthProvider>
   );
 }
 

@@ -1,13 +1,14 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from datetime import datetime, timedelta
 import requests
 import traceback
-from .db import init_db, get_db, engine, Base
-from . import models
-from .scraper import get_stock_data
-from .ml_pipeline import run_pipeline
+from db import init_db, get_db, engine, Base
+import models
+from scraper import get_stock_data
+from ml_pipeline import run_pipeline
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -29,6 +30,9 @@ class TransactionEditRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     username: str
+    full_name: Optional[str] = None
+    risk_profile: Optional[str] = None
+    investment_horizon: Optional[str] = None
 
 app = FastAPI(title='Risk Analysis System API')
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
@@ -125,48 +129,90 @@ def execute_pipeline(db: Session=Depends(get_db)):
 
 @app.post('/api/login')
 def login(req: LoginRequest, db: Session=Depends(get_db)):
+    # 1. Handle User
     user = db.query(models.User).filter(models.User.username == req.username).first()
     if not user:
-        user = models.User(username=req.username)
+        user = models.User(
+            username=req.username,
+            full_name=req.full_name,
+            risk_profile=req.risk_profile,
+            investment_horizon=req.investment_horizon
+        )
         db.add(user)
         db.commit()
         db.refresh(user)
-    return {'status': 'success', 'user_id': user.id, 'username': user.username}
+    else:
+        # Update existing user details on login if provided
+        if req.full_name: user.full_name = req.full_name
+        if req.risk_profile: user.risk_profile = req.risk_profile
+        if req.investment_horizon: user.investment_horizon = req.investment_horizon
+        db.commit()
+        db.refresh(user)
+        
+    # 2. Ensure User has a default Portfolio
+    portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == user.id).first()
+    if not portfolio:
+        portfolio = models.Portfolio(
+            portfolio_name=f"{user.username}'s Portfolio", 
+            user_id=user.id
+        )
+        db.add(portfolio)
+        db.commit()
+        db.refresh(portfolio)
+
+    # 3. Return combined profile
+    return {
+        'status': 'success', 
+        'user_id': user.id, 
+        'portfolio_id': portfolio.id,
+        'username': user.username,
+        'full_name': user.full_name,
+        'risk_profile': user.risk_profile,
+        'investment_horizon': user.investment_horizon
+    }
 
 @app.post('/api/portfolio/transaction')
 def add_transaction(req: TransactionRequest, db: Session=Depends(get_db)):
-    user = db.query(models.User).filter(models.User.id == req.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == req.user_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
     
-    tx = models.PortfolioTransaction(
-        user_id=req.user_id,
-        symbol=req.symbol.upper(),
-        transaction_type=req.transaction_type.upper(),
-        shares=req.shares,
-        price_at_purchase=req.price_at_purchase
-    )
-    db.add(tx)
-    db.commit()
+    if req.transaction_type.upper() == 'BUY':
+        # Use the stored procedure as requested
+        db.execute(
+            text("CALL purchase_portfolio_asset(:pid, :sym, :shares, :price)"),
+            {"pid": portfolio.id, "sym": req.symbol.upper(), "shares": req.shares, "price": req.price_at_purchase}
+        )
+        db.commit()
+    else:
+        # For SELL, just add a negative share amount using SQLAlchemy
+        asset = models.PortfolioAsset(
+            portfolio_id=portfolio.id,
+            ticker=req.symbol.upper(),
+            shares=-req.shares,
+            purchase_price=req.price_at_purchase
+        )
+        db.add(asset)
+        db.commit()
+        
     return {'status': 'success', 'message': 'Transaction added'}
 
 @app.put('/api/portfolio/transaction/{tx_id}')
 def edit_transaction(tx_id: int, req: TransactionEditRequest, db: Session=Depends(get_db)):
-    tx = db.query(models.PortfolioTransaction).filter(models.PortfolioTransaction.id == tx_id).first()
+    tx = db.query(models.PortfolioAsset).filter(models.PortfolioAsset.id == tx_id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
-    tx.symbol = req.symbol.upper()
-    tx.transaction_type = req.transaction_type.upper()
-    tx.shares = req.shares
-    tx.price_at_purchase = req.price_at_purchase
+    tx.ticker = req.symbol.upper()
+    tx.shares = req.shares if req.transaction_type.upper() == 'BUY' else -req.shares
+    tx.purchase_price = req.price_at_purchase
     
     db.commit()
     return {'status': 'success', 'message': 'Transaction updated'}
 
 @app.delete('/api/portfolio/transaction/{tx_id}')
 def delete_transaction(tx_id: int, db: Session=Depends(get_db)):
-    tx = db.query(models.PortfolioTransaction).filter(models.PortfolioTransaction.id == tx_id).first()
+    tx = db.query(models.PortfolioAsset).filter(models.PortfolioAsset.id == tx_id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
@@ -178,28 +224,35 @@ def delete_transaction(tx_id: int, db: Session=Depends(get_db)):
 price_cache = {}
 @app.get('/api/portfolio/{user_id}')
 def get_portfolio(user_id: int, db: Session=Depends(get_db)):
-    transactions = db.query(models.PortfolioTransaction).filter(models.PortfolioTransaction.user_id == user_id).all()
+    portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == user_id).first()
+    if not portfolio:
+        return {'status': 'success', 'portfolio': [], 'metrics': {}}
+
+    transactions = db.query(models.PortfolioAsset).filter(models.PortfolioAsset.portfolio_id == portfolio.id).all()
     
     holdings = {}
     for tx in transactions:
-        sym = tx.symbol
+        sym = tx.ticker
         if sym not in holdings:
             holdings[sym] = {'shares': 0.0, 'total_invested': 0.0, 'history': []}
         
-        if tx.transaction_type == 'BUY':
-            holdings[sym]['shares'] += tx.shares
-            holdings[sym]['total_invested'] += (tx.shares * tx.price_at_purchase)
-        elif tx.transaction_type == 'SELL':
-            holdings[sym]['shares'] -= tx.shares
-            # Simple avg cost reduction
+        # Determine BUY or SELL based on shares sign
+        tx_type = 'BUY' if tx.shares > 0 else 'SELL'
+        abs_shares = abs(tx.shares)
+        
+        if tx_type == 'BUY':
+            holdings[sym]['shares'] += abs_shares
+            holdings[sym]['total_invested'] += (abs_shares * tx.purchase_price)
+        else:
+            holdings[sym]['shares'] -= abs_shares
             if holdings[sym]['shares'] <= 0:
                 holdings[sym]['total_invested'] = 0.0
             
         holdings[sym]['history'].append({
-            'type': tx.transaction_type,
-            'shares': tx.shares,
-            'price': tx.price_at_purchase,
-            'date': tx.timestamp
+            'type': tx_type,
+            'shares': abs_shares,
+            'price': tx.purchase_price,
+            'date': tx.purchase_date
         })
 
     # Filter out empty holdings
@@ -265,14 +318,16 @@ def get_portfolio(user_id: int, db: Session=Depends(get_db)):
     # Get recent activity (last 5)
     recent_activity = []
     for tx in reversed(transactions[-5:]):
+        tx_type = 'BUY' if tx.shares > 0 else 'SELL'
+        abs_shares = abs(tx.shares)
         recent_activity.append({
             'id': tx.id,
-            'symbol': tx.symbol,
-            'type': tx.transaction_type,
-            'shares': tx.shares,
-            'price': tx.price_at_purchase,
-            'total': tx.shares * tx.price_at_purchase,
-            'date': tx.timestamp
+            'symbol': tx.ticker,
+            'type': tx_type,
+            'shares': abs_shares,
+            'price': tx.purchase_price,
+            'total': abs_shares * tx.purchase_price,
+            'date': tx.purchase_date
         })
 
     return {
@@ -353,7 +408,7 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
                 normalized += '.NS'
             
             # Fetch from DB to instantly get Volatility and Yearly Return
-            asset_record = db.query(models.AssetAnalysis).filter(models.AssetAnalysis.asset == normalized).first()
+            asset_record = db.query(models.RiskScore).filter(models.RiskScore.ticker == normalized).first()
             if asset_record:
                 user_stocks_data.append({
                     'symbol': normalized,
