@@ -100,28 +100,7 @@ export default function SipPlanner() {
 
   return (
     <div className="bg-[#f8f9fa] min-h-screen text-slate-800 antialiased font-['Inter']">
-      
-      {/* Header (Same as Dashboard) */}
-      <header className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200">
-        <div className="flex justify-between items-center max-w-[1440px] mx-auto px-6 h-16">
-          <div className="flex items-center gap-8">
-            <span className="text-xl font-bold tracking-tight text-slate-900">Smart Investment Dashboard</span>
-            <nav className="hidden md:flex gap-6 items-center">
-              <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium tracking-tight" to="/">Dashboard</Link>
-              <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium tracking-tight" to="/riskanalysis">Risk Analysis</Link>
-              <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium tracking-tight" to="/portfolio">Portfolio</Link>
-              <Link className="text-blue-600 font-semibold border-b-2 border-blue-600 pb-1 text-sm tracking-tight" to="/sipplanner">SIP Planner</Link>
-              <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium tracking-tight" to="/assetexplorer">Asset Explorer</Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-4">
-             <button className="bg-slate-100 hover:bg-slate-200 w-10 h-10 rounded-full flex items-center justify-center"><span className="material-symbols-outlined text-slate-600">notifications</span></button>
-             <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDuDCnvjfhbDb_rgRtu_aadl71dje67aF4NcHCZ2HXB3Ad3rUxqm5IOUhwL97tok9dGkF4fR4qOt9puUeM8knSGZKu82F9QJIKCyvGzeZZ6GEr04D4txAZBCx2erato0tvCRPjHsxang65N7sk4BfbTWgsgflrZN1QDfAM-CReLfT0uDOFaINEcnPpddeMARGGi5fv9JL8z0g9QjBf97wK1HNSGxmrLT00TAAUEMKHuR9wMcLR3K88XQEmUtDkd8IjQfgzbfaTA2Os" className="w-10 h-10 rounded-full border border-slate-300" alt="profile"/>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-[1240px] mx-auto px-6 py-24 pb-32">
+      <main className="max-w-[1240px] mx-auto px-6 py-8 pb-32">
         <h1 className="text-4xl font-bold mb-8 text-slate-800">SIP Calculator</h1>
 
         {/* SIP Calculator Component */}

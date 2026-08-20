@@ -72,22 +72,7 @@ export default function AssetExplorer() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] antialiased font-['Inter']">
-      <header className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200">
-        <div className="flex justify-between items-center max-w-[1440px] mx-auto px-6 h-16">
-          <div className="flex items-center gap-8">
-            <Link to="/" className="text-xl font-bold tracking-tight text-slate-900">Smart Investment Dashboard</Link>
-            <nav className="hidden md:flex gap-6 items-center">
-              <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium" to="/">Dashboard</Link>
-              <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium" to="/riskanalysis">Risk Analysis</Link>
-              <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium" to="/portfolio">Portfolio</Link>
-              <Link className="text-slate-500 hover:text-slate-900 transition-colors text-sm font-medium" to="/sipplanner">SIP Planner</Link>
-              <Link className="text-blue-600 font-semibold border-b-2 border-blue-600 pb-1 text-sm" to="/assetexplorer">Asset Explorer</Link>
-            </nav>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-[1240px] mx-auto px-6 py-24 pb-32">
+      <main className="max-w-[1240px] mx-auto px-6 py-8 pb-32">
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-2">
             <span className="material-symbols-outlined text-4xl text-blue-600">travel_explore</span>

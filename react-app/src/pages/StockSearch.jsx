@@ -127,25 +127,27 @@ export default function StockSearch() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] antialiased font-['Inter']">
-      
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-[1440px] mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex gap-4 items-center">
-            <Link to="/" className="text-blue-600 flex items-center gap-1 font-medium hover:bg-blue-50 px-2 py-1 rounded">
-              <span className="material-symbols-outlined text-sm">arrow_back</span> Dashboard
-            </Link>
-            <div className="h-6 w-px bg-slate-200"></div>
-            <h1 className="text-lg font-bold text-slate-900">{f.shortName || stockname.toUpperCase()}</h1>
-            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{stockname.toUpperCase()}</span>
+      <main className="max-w-[1440px] mx-auto px-6 py-6 pb-20">
+        
+        {/* Breadcrumb & Title */}
+        <div className="flex justify-between items-end mb-6">
+          <div className="flex items-center gap-3">
+             <Link to="/" className="text-blue-600 flex items-center gap-1 font-medium hover:bg-blue-50 px-2 py-1 rounded">
+               <span className="material-symbols-outlined text-sm">arrow_back</span> Dashboard
+             </Link>
+             <div className="h-6 w-px bg-slate-300"></div>
+             <div>
+               <h1 className="text-3xl font-bold text-slate-900 leading-none">{f.shortName || stockname.toUpperCase()}</h1>
+               <span className="text-xs font-bold text-slate-500 uppercase">{f.exchange} • {f.quoteType} • {f.currency}</span>
+             </div>
           </div>
           <div className="flex gap-3">
              <button className="p-2 border border-slate-200 rounded-full hover:bg-slate-50"><span className="material-symbols-outlined text-sm">notifications</span></button>
              <button className="p-2 border border-slate-200 rounded-full hover:bg-slate-50"><span className="material-symbols-outlined text-sm">bookmark</span></button>
           </div>
         </div>
-      </header>
 
-      <div className="max-w-[1440px] mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         <div className="lg:col-span-2">
           
@@ -410,6 +412,7 @@ export default function StockSearch() {
            </div>
         </div>
       </div>
+      </main>
     </div>
   );
 }
