@@ -38,6 +38,30 @@ export default function Dashboard() {
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val || 0);
 
+  const groupedAllocations = React.useMemo(() => {
+    let stocks = 0;
+    let crypto = 0;
+    let gold = 0;
+    
+    (portfolio.assets || []).forEach(asset => {
+      const sym = asset.symbol.toUpperCase();
+      if (sym.includes('-USD') || sym.includes('BTC') || sym.includes('ETH') || sym.includes('CRYPTO')) {
+        crypto += asset.allocation_pct || 0;
+      } else if (sym.includes('GOLD') || sym.includes('SILV')) {
+        gold += asset.allocation_pct || 0;
+      } else {
+        stocks += asset.allocation_pct || 0;
+      }
+    });
+
+    return [
+      { label: 'Stocks', pct: stocks, color: '#2563eb' },
+      { label: 'Crypto', pct: crypto, color: '#059669' },
+      { label: 'Gold & Silver', pct: gold, color: '#d97706' },
+      { label: 'Cash', pct: 0, color: '#64748b' }
+    ];
+  }, [portfolio.assets]);
+
   // Colors for charts
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#F15B5B', '#4D4D4E'];
 
@@ -115,22 +139,14 @@ export default function Dashboard() {
         <div className="bg-white p-8 rounded-2xl shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 flex flex-col">
           <h3 className="text-xl font-bold text-slate-900 mb-6">Asset Allocation</h3>
           <div className="grid grid-cols-2 gap-4 flex-grow">
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-5 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-              <span className="text-slate-500 font-medium text-sm tracking-wide uppercase mb-2">Stocks</span>
-              <span className="text-3xl font-bold text-blue-600">65%</span>
-            </div>
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-5 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-              <span className="text-slate-500 font-medium text-sm tracking-wide uppercase mb-2">Crypto</span>
-              <span className="text-3xl font-bold text-blue-600">15%</span>
-            </div>
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-5 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-              <span className="text-slate-500 font-medium text-sm tracking-wide uppercase mb-2">Gold & Silver</span>
-              <span className="text-3xl font-bold text-blue-600">12%</span>
-            </div>
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-5 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-              <span className="text-slate-500 font-medium text-sm tracking-wide uppercase mb-2">Cash</span>
-              <span className="text-3xl font-bold text-blue-600">8%</span>
-            </div>
+            {groupedAllocations.map((group, i) => (
+              <div key={i} className="bg-slate-50 border border-slate-100 rounded-xl p-5 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
+                <span className="text-slate-500 font-medium text-sm tracking-wide uppercase mb-2">{group.label}</span>
+                <span className="text-3xl font-bold" style={{ color: group.color }}>
+                  {group.pct.toFixed(1)}%
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
