@@ -69,16 +69,16 @@ export default function Dashboard() {
     <div className="max-w-[1440px] mx-auto px-6 py-8 mb-20 lg:mb-0">
       
       <div className="mb-8">
-         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Dashboard Overview</h1>
-         <p className="text-slate-500 mt-1">Welcome back, {currentUser?.username}. Here's a quick summary of your wealth.</p>
+         <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Dashboard Overview</h1>
+         <p className="text-slate-500 dark:text-slate-400 mt-1">Welcome back, {currentUser?.username}. Here's a quick summary of your wealth.</p>
       </div>
 
       {/* Dynamic Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <div className="bg-white p-6 rounded-lg shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 flex flex-col justify-between transition-colors">
           <div>
-            <p className="text-slate-500 text-sm font-medium mb-1">Total Investment</p>
-            <h3 className="text-2xl font-bold tracking-tight text-slate-900">{formatCurrency(portfolio.summary.total_investment)}</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Investment</p>
+            <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{formatCurrency(portfolio.summary.total_investment)}</h3>
           </div>
           <div className="mt-4 flex items-center gap-2">
             <span className="relative flex h-2 w-2">
@@ -89,13 +89,13 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <div className="bg-white p-6 rounded-lg shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 flex flex-col justify-between transition-colors">
           <div>
-            <p className="text-slate-500 text-sm font-medium mb-1">Live Portfolio Value</p>
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Live Portfolio Value</p>
             <div className="flex items-center gap-3">
-               <h3 className="text-2xl font-bold tracking-tight text-slate-900">{formatCurrency(portfolio.summary.portfolio_value)}</h3>
-               <button onClick={fetchPortfolio} className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-600 transition-colors" title="Refresh Live Prices">
-                 <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-blue-600' : ''}`}>refresh</span>
+               <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{formatCurrency(portfolio.summary.portfolio_value)}</h3>
+               <button onClick={fetchPortfolio} className="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Refresh Live Prices">
+                 <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin text-blue-600 dark:text-blue-400' : ''}`}>refresh</span>
                </button>
             </div>
           </div>
@@ -105,10 +105,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className={`bg-white p-6 rounded-lg shadow-[0_8px_24px_rgba(25,28,29,0.04)] border-l-4 flex flex-col justify-between ${portfolio.summary.total_profit >= 0 ? 'border-emerald-500' : 'border-red-500'}`}>
+        <div className={`bg-white dark:bg-slate-900 p-6 rounded-lg shadow-[0_8px_24px_rgba(25,28,29,0.04)] border-l-4 flex flex-col justify-between transition-colors ${portfolio.summary.total_profit >= 0 ? 'border-emerald-500 dark:border-emerald-500' : 'border-red-500 dark:border-red-500'}`}>
           <div>
-            <p className="text-slate-500 text-sm font-medium mb-1">Total Profit/Loss</p>
-            <h3 className={`text-2xl font-bold tracking-tight ${portfolio.summary.total_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Total Profit/Loss</p>
+            <h3 className={`text-2xl font-bold tracking-tight ${portfolio.summary.total_profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
               {portfolio.summary.total_profit >= 0 ? '+' : ''}{formatCurrency(portfolio.summary.total_profit)}
             </h3>
           </div>
@@ -119,12 +119,12 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 flex flex-col justify-between transition-colors">
           <div>
-            <p className="text-slate-500 text-sm font-medium mb-1">Active Assets</p>
-            <h3 className="text-2xl font-bold tracking-tight text-slate-900">{portfolio.assets.length}</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Active Assets</p>
+            <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{portfolio.assets.length}</h3>
           </div>
-          <div className="mt-4 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+          <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
             {portfolio.assets.map((asset, i) => (
               <div key={i} className="h-full" style={{ width: `${asset.allocation_pct}%`, backgroundColor: COLORS[i % COLORS.length] }}></div>
             ))}
@@ -136,12 +136,12 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
         
         {/* Original Asset Allocation Grid */}
-        <div className="bg-white p-8 rounded-2xl shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 flex flex-col">
-          <h3 className="text-xl font-bold text-slate-900 mb-6">Asset Allocation</h3>
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 flex flex-col transition-colors">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Asset Allocation</h3>
           <div className="grid grid-cols-2 gap-4 flex-grow">
             {groupedAllocations.map((group, i) => (
-              <div key={i} className="bg-slate-50 border border-slate-100 rounded-xl p-5 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-                <span className="text-slate-500 font-medium text-sm tracking-wide uppercase mb-2">{group.label}</span>
+              <div key={i} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-xl p-5 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
+                <span className="text-slate-500 dark:text-slate-400 font-medium text-sm tracking-wide uppercase mb-2">{group.label}</span>
                 <span className="text-3xl font-bold" style={{ color: group.color }}>
                   {group.pct.toFixed(1)}%
                 </span>
@@ -151,8 +151,8 @@ export default function Dashboard() {
         </div>
 
         {/* Original Portfolio Performance Chart */}
-        <div className="bg-white p-8 rounded-2xl shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100">
-          <h3 className="text-xl font-bold text-slate-900 mb-6">Portfolio Performance</h3>
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 transition-colors">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Portfolio Performance</h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={[
@@ -206,15 +206,15 @@ export default function Dashboard() {
          </div>
 
          {/* Link to Risk Analysis */}
-         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 flex flex-col justify-between">
+         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-8 flex flex-col justify-between transition-colors">
             <div>
-               <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mb-4">
+               <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mb-4">
                   <span className="material-symbols-outlined">warning</span>
                </div>
-               <h3 className="text-xl font-bold text-slate-900 mb-2">AI Risk & Allocation Doctor</h3>
-               <p className="text-slate-500 mb-6">Uncover hidden correlations and concentration risks in your stock universe using our AI models.</p>
+               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">AI Risk & Allocation Doctor</h3>
+               <p className="text-slate-500 dark:text-slate-400 mb-6">Uncover hidden correlations and concentration risks in your stock universe using our AI models.</p>
             </div>
-            <Link to="/riskanalysis" className="text-blue-600 font-bold hover:text-blue-800 flex items-center gap-2">
+            <Link to="/riskanalysis" className="text-blue-600 dark:text-blue-400 font-bold hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-2">
                Run Analysis <span className="material-symbols-outlined text-sm">arrow_forward</span>
             </Link>
          </div>

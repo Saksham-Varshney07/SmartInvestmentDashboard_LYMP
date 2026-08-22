@@ -99,13 +99,13 @@ export default function SipPlanner() {
   ];
 
   return (
-    <div className="bg-[#f8f9fa] min-h-screen text-slate-800 antialiased font-['Inter']">
+    <div className="bg-[#f8f9fa] dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-100 antialiased font-['Inter'] transition-colors duration-300">
       <main className="max-w-[1240px] mx-auto px-6 py-8 pb-32">
-        <h1 className="text-4xl font-bold mb-8 text-slate-800">SIP Calculator</h1>
+        <h1 className="text-4xl font-bold mb-8 text-slate-800 dark:text-white">SIP Calculator</h1>
 
         {/* SIP Calculator Component */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex gap-6 px-10 border-b border-slate-100 pt-6">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors">
+          <div className="flex gap-6 px-10 border-b border-slate-100 dark:border-slate-800 pt-6">
              <div className="text-[15px] font-bold text-[#059669] border-b-[3px] border-[#059669] pb-3 px-2">Systematic Investment Plan</div>
           </div>
           
@@ -115,12 +115,12 @@ export default function SipPlanner() {
             <div className="flex-1">
                <div className="mb-10">
                   <div className="flex justify-between items-center mb-6">
-                     <label className="font-semibold text-slate-700">Monthly investment (₹)</label>
+                     <label className="font-semibold text-slate-700 dark:text-slate-300">Monthly investment (₹)</label>
                      <input 
                         type="number" 
                         value={monthlyInvestment} 
                         onChange={(e) => setMonthlyInvestment(Number(e.target.value))}
-                        className="bg-emerald-50 border border-emerald-100 text-emerald-700 font-bold px-4 py-2 rounded-lg w-[120px] text-right focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                        className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold px-4 py-2 rounded-lg w-[120px] text-right focus:outline-none focus:ring-2 focus:ring-emerald-500" 
                      />
                   </div>
                   <input 
@@ -134,12 +134,12 @@ export default function SipPlanner() {
 
                <div className="mb-10">
                   <div className="flex justify-between items-center mb-6">
-                     <label className="font-semibold text-slate-700">Expected return rate (p.a %)</label>
+                     <label className="font-semibold text-slate-700 dark:text-slate-300">Expected return rate (p.a %)</label>
                      <input 
                         type="number" 
                         value={returnRate} 
                         onChange={(e) => setReturnRate(Number(e.target.value))}
-                        className="bg-emerald-50 border border-emerald-100 text-emerald-700 font-bold px-4 py-2 rounded-lg w-[100px] text-right focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                        className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold px-4 py-2 rounded-lg w-[100px] text-right focus:outline-none focus:ring-2 focus:ring-emerald-500" 
                      />
                   </div>
                   <input 
@@ -153,12 +153,12 @@ export default function SipPlanner() {
 
                <div className="mb-10">
                   <div className="flex justify-between items-center mb-6">
-                     <label className="font-semibold text-slate-700">Time period (Years)</label>
+                     <label className="font-semibold text-slate-700 dark:text-slate-300">Time period (Years)</label>
                      <input 
                         type="number" 
                         value={timePeriod} 
                         onChange={(e) => setTimePeriod(Number(e.target.value))}
-                        className="bg-emerald-50 border border-emerald-100 text-emerald-700 font-bold px-4 py-2 rounded-lg w-[100px] text-right focus:outline-none focus:ring-2 focus:ring-emerald-500" 
+                        className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold px-4 py-2 rounded-lg w-[100px] text-right focus:outline-none focus:ring-2 focus:ring-emerald-500" 
                      />
                   </div>
                   <input 
@@ -172,16 +172,16 @@ export default function SipPlanner() {
 
                <div className="mt-12 space-y-4 text-[15px]">
                   <div className="flex justify-between items-center">
-                     <span className="text-slate-500 font-medium">Invested amount</span>
+                     <span className="text-slate-500 dark:text-slate-400 font-medium">Invested amount</span>
                      <span className="font-bold">{formatCurrency(investedAmount)}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                     <span className="text-slate-500 font-medium">Est. returns</span>
+                     <span className="text-slate-500 dark:text-slate-400 font-medium">Est. returns</span>
                      <span className="font-bold">{formatCurrency(estReturns)}</span>
                   </div>
-                  <div className="flex justify-between items-center text-lg mt-6 pt-6 border-t border-slate-100">
-                     <span className="text-slate-700 font-medium">Total value</span>
-                     <span className="font-bold text-slate-900">{formatCurrency(totalValue)}</span>
+                  <div className="flex justify-between items-center text-lg mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                     <span className="text-slate-700 dark:text-slate-300 font-medium">Total value</span>
+                     <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(totalValue)}</span>
                   </div>
 
                   {/* Inflation Adjustment Module */}
@@ -237,12 +237,12 @@ export default function SipPlanner() {
             {/* Donut Chart & Action */}
             <div className="flex-[0.8] flex flex-col items-center pt-8 lg:pt-0">
                
-               <div className="flex gap-6 mb-8 text-sm font-medium text-slate-500">
+               <div className="flex gap-6 mb-8 text-sm font-medium text-slate-500 dark:text-slate-400">
                   <div className="flex items-center gap-2">
-                     <div className="w-4 h-2 rounded-full bg-slate-200"></div> Invested amount
+                     <div className="w-4 h-2 rounded-full bg-[#91bc4bff]"></div> Invested amount
                   </div>
                   <div className="flex items-center gap-2">
-                     <div className="w-4 h-2 rounded-full bg-indigo-500"></div> Est. returns
+                     <div className="w-4 h-2 rounded-full bg-[#4f46e5]"></div> Est. returns
                   </div>
                </div>
 
@@ -269,27 +269,27 @@ export default function SipPlanner() {
                </div>
 
                {/* AI Monte Carlo Simulator */}
-                <div className="mt-8 w-full max-w-[320px] bg-indigo-50 border border-indigo-100 p-5 rounded-xl text-center">
-                   <div className="flex items-center justify-center gap-2 text-indigo-700 font-bold mb-2">
+                <div className="mt-8 w-full max-w-[320px] bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 p-5 rounded-xl text-center">
+                   <div className="flex items-center justify-center gap-2 text-indigo-700 dark:text-indigo-400 font-bold mb-2">
                       <span className="material-symbols-outlined">network_intelligence</span>
                       AI Monte Carlo Simulator
                    </div>
-                   <p className="text-xs text-indigo-600/80 mb-4 leading-relaxed">
+                   <p className="text-xs text-indigo-600/80 dark:text-indigo-400/80 mb-4 leading-relaxed">
                       AI ran <span className="font-bold">500 stochastic market simulations</span> using normal distributions of historical market volatility to predict your realistic outcome spectrum:
                    </p>
                    
-                   <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-indigo-100 mb-2">
+                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-slate-700 mb-2">
                       <div className="text-left">
                          <div className="text-[10px] uppercase font-bold text-amber-500 tracking-wider">Worst Case (5%)</div>
-                         <div className="font-black text-slate-800">{formatCurrency(mcPaths.worstCase)}</div>
+                         <div className="font-black text-slate-800 dark:text-white">{formatCurrency(mcPaths.worstCase)}</div>
                       </div>
                       <span className="material-symbols-outlined text-slate-300">trending_down</span>
                    </div>
 
-                   <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-indigo-100">
+                   <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-slate-700">
                       <div className="text-left">
                          <div className="text-[10px] uppercase font-bold text-emerald-500 tracking-wider">Best Case (95%)</div>
-                         <div className="font-black text-slate-800">{formatCurrency(mcPaths.bestCase)}</div>
+                         <div className="font-black text-slate-800 dark:text-white">{formatCurrency(mcPaths.bestCase)}</div>
                       </div>
                       <span className="material-symbols-outlined text-slate-300">trending_up</span>
                    </div>
@@ -321,20 +321,20 @@ export default function SipPlanner() {
         </section>
 
         {/* FAQs Section */}
-        <section className="mt-16 bg-white p-10 rounded-2xl shadow-sm border border-slate-200">
-           <h2 className="text-2xl font-bold mb-8 text-slate-800">FAQs</h2>
+        <section className="mt-16 bg-white dark:bg-slate-900 p-10 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors">
+           <h2 className="text-2xl font-bold mb-8 text-slate-800 dark:text-white">FAQs</h2>
            <div className="flex flex-col">
               {faqs.map((faq, idx) => (
-                 <div key={idx} className="border-b border-slate-100 last:border-0">
+                 <div key={idx} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
                     <button 
                        className="w-full text-left py-6 flex justify-between items-center focus:outline-none group"
                        onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
                     >
-                       <span className={`text-lg font-medium transition-colors ${activeFaq === idx ? 'text-blue-600' : 'text-slate-700 group-hover:text-blue-600'}`}>{faq.q}</span>
-                       <span className="material-symbols-outlined text-slate-400 group-hover:text-slate-600 transition-transform duration-300 transform" style={{ rotate: activeFaq === idx ? '180deg' : '0deg'}}>expand_more</span>
+                       <span className={`text-lg font-medium transition-colors ${activeFaq === idx ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400'}`}>{faq.q}</span>
+                       <span className="material-symbols-outlined text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-400 transition-transform duration-300 transform" style={{ rotate: activeFaq === idx ? '180deg' : '0deg'}}>expand_more</span>
                     </button>
                     {activeFaq === idx && (
-                       <div className="pb-6 text-slate-600 leading-relaxed pr-12 animate-fade-in">
+                       <div className="pb-6 text-slate-600 dark:text-slate-400 leading-relaxed pr-12 animate-fade-in">
                           {faq.a}
                        </div>
                     )}

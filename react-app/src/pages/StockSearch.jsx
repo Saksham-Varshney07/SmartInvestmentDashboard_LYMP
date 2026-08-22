@@ -34,7 +34,7 @@ export default function StockSearch() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-12 text-slate-500 bg-[#f8f9fa]">
+      <div className="min-h-screen flex flex-col items-center justify-center p-12 text-slate-500 dark:text-slate-400 bg-[#f8f9fa] dark:bg-slate-950 transition-colors duration-300">
          <span className="material-symbols-outlined text-4xl mb-4 animate-spin">data_usage</span>
          <p>Fetching live market data and fundamentals...</p>
       </div>
@@ -43,8 +43,8 @@ export default function StockSearch() {
 
   if (fetchError) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-12 bg-[#f8f9fa]">
-        <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-xl flex items-start gap-3 max-w-md">
+      <div className="min-h-screen flex flex-col items-center justify-center p-12 bg-[#f8f9fa] dark:bg-slate-950 transition-colors duration-300">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-6 rounded-xl flex items-start gap-3 max-w-md">
           <span className="material-symbols-outlined mt-0.5">error</span>
           <div>
             <p className="font-bold mb-1">Analysis Failed</p>
@@ -57,8 +57,8 @@ export default function StockSearch() {
 
   if (!data) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-12 text-slate-500 bg-[#f8f9fa]">
-        <span className="material-symbols-outlined text-4xl mb-4 text-slate-300">search_off</span>
+      <div className="min-h-screen flex flex-col items-center justify-center p-12 text-slate-500 dark:text-slate-400 bg-[#f8f9fa] dark:bg-slate-950 transition-colors duration-300">
+        <span className="material-symbols-outlined text-4xl mb-4 text-slate-300 dark:text-slate-600">search_off</span>
         <p>No data returned for <strong>{stockname}</strong>. The symbol may be invalid.</p>
       </div>
     );
@@ -126,24 +126,24 @@ export default function StockSearch() {
 
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] antialiased font-['Inter']">
+    <div className="min-h-screen bg-[#f8f9fa] dark:bg-slate-950 antialiased font-['Inter'] transition-colors duration-300">
       <main className="max-w-[1440px] mx-auto px-6 py-6 pb-20">
         
         {/* Breadcrumb & Title */}
         <div className="flex justify-between items-end mb-6">
           <div className="flex items-center gap-3">
-             <Link to="/" className="text-blue-600 flex items-center gap-1 font-medium hover:bg-blue-50 px-2 py-1 rounded">
+             <Link to="/" className="text-blue-600 dark:text-blue-400 flex items-center gap-1 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 px-2 py-1 rounded">
                <span className="material-symbols-outlined text-sm">arrow_back</span> Dashboard
              </Link>
-             <div className="h-6 w-px bg-slate-300"></div>
+             <div className="h-6 w-px bg-slate-300 dark:bg-slate-700"></div>
              <div>
-               <h1 className="text-3xl font-bold text-slate-900 leading-none">{f.shortName || stockname.toUpperCase()}</h1>
-               <span className="text-xs font-bold text-slate-500 uppercase">{f.exchange} • {f.quoteType} • {f.currency}</span>
+               <h1 className="text-3xl font-bold text-slate-900 dark:text-white leading-none">{f.shortName || stockname.toUpperCase()}</h1>
+               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">{f.exchange} • {f.quoteType} • {f.currency}</span>
              </div>
           </div>
           <div className="flex gap-3">
-             <button className="p-2 border border-slate-200 rounded-full hover:bg-slate-50"><span className="material-symbols-outlined text-sm">notifications</span></button>
-             <button className="p-2 border border-slate-200 rounded-full hover:bg-slate-50"><span className="material-symbols-outlined text-sm">bookmark</span></button>
+             <button className="p-2 border border-slate-200 dark:border-slate-700 dark:text-slate-300 rounded-full hover:bg-slate-50 dark:hover:bg-slate-800"><span className="material-symbols-outlined text-sm">notifications</span></button>
+             <button className="p-2 border border-slate-200 dark:border-slate-700 dark:text-slate-300 rounded-full hover:bg-slate-50 dark:hover:bg-slate-800"><span className="material-symbols-outlined text-sm">bookmark</span></button>
           </div>
         </div>
 
@@ -151,15 +151,15 @@ export default function StockSearch() {
         
         <div className="lg:col-span-2">
           
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 mb-6 transition-colors">
             <div className="mb-6">
-              <h2 className="text-3xl font-bold flex items-baseline gap-2">
+              <h2 className="text-3xl font-bold text-slate-900 dark:text-white flex items-baseline gap-2">
                 ₹{latestPrice.toFixed(2)}
-                <span className={`text-sm font-semibold flex items-center gap-1 ${isPositive ? 'text-green-600' : 'text-red-500'}`}>
+                <span className={`text-sm font-semibold flex items-center gap-1 ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                   {isPositive ? '+' : ''}{priceChange.toFixed(2)} ({isPositive ? '+' : ''}{pctChange.toFixed(2)}%)
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 mt-1">Live market data representation</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Live market data representation</p>
             </div>
             
             
@@ -197,12 +197,12 @@ export default function StockSearch() {
               </ResponsiveContainer>
             </div>
             
-            <div className="flex gap-2 mt-4 border-t border-slate-100 pt-4">
+            <div className="flex gap-2 mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
               {['1D', '1W', '1M', '3M', '6M', '1Y', '3Y', '5Y', 'MAX'].map(t => (
                 <button 
                    key={t} 
                    onClick={() => setTimeRange(t)}
-                   className={`text-xs font-semibold px-3 py-1 rounded-full ${timeRange === t ? 'bg-[#059669] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                   className={`text-xs font-semibold px-3 py-1 rounded-full ${timeRange === t ? 'bg-[#059669] text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                 >
                    {t}
                 </button>
@@ -211,81 +211,81 @@ export default function StockSearch() {
           </div>
 
           
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors">
              
-             <div className="flex gap-6 px-6 border-b border-slate-100 pt-4">
+             <div className="flex gap-6 px-6 border-b border-slate-100 dark:border-slate-800 pt-4">
                <button className="text-sm font-bold text-[#059669] border-b-2 border-[#059669] pb-3">Overview</button>
-               <button className="text-sm font-medium text-slate-500 hover:text-slate-900 pb-3">Technicals</button>
-               <button className="text-sm font-medium text-slate-500 hover:text-slate-900 pb-3">News</button>
-               <button className="text-sm font-medium text-slate-500 hover:text-slate-900 pb-3">Events</button>
+               <button className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white pb-3">Technicals</button>
+               <button className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white pb-3">News</button>
+               <button className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white pb-3">Events</button>
              </div>
 
              <div className="p-6">
-                <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-1">Performance <span className="material-symbols-outlined text-sm text-slate-400">info</span></h3>
+                <h3 className="font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-1">Performance <span className="material-symbols-outlined text-sm text-slate-400">info</span></h3>
                 
                 
                 <div className="mb-6">
-                   <div className="flex justify-between text-xs text-slate-500 mb-2">
-                      <span>Today's low <br/><strong className="text-sm text-slate-900">{f.regularMarketDayLow || (hist.length > 0 ? hist[hist.length-1].low : '-')}</strong></span>
-                      <span className="text-right">Today's high <br/><strong className="text-sm text-slate-900">{f.regularMarketDayHigh || (hist.length > 0 ? hist[hist.length-1].high : '-')}</strong></span>
+                   <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
+                      <span>Today's low <br/><strong className="text-sm text-slate-900 dark:text-white">{f.regularMarketDayLow || (hist.length > 0 ? hist[hist.length-1].low : '-')}</strong></span>
+                      <span className="text-right">Today's high <br/><strong className="text-sm text-slate-900 dark:text-white">{f.regularMarketDayHigh || (hist.length > 0 ? hist[hist.length-1].high : '-')}</strong></span>
                    </div>
-                   <div className="h-1.5 w-full bg-slate-100 rounded-full relative">
-                      <div className="absolute top-1/2 left-1/3 -translate-y-1/2 w-2 h-2 bg-slate-700 rotate-45 transform"></div>
+                   <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full relative">
+                      <div className="absolute top-1/2 left-1/3 -translate-y-1/2 w-2 h-2 bg-slate-700 dark:bg-slate-400 rotate-45 transform"></div>
                    </div>
                 </div>
 
                 
-                <div className="mb-8 border-b border-slate-100 pb-8">
-                   <div className="flex justify-between text-xs text-slate-500 mb-2">
-                      <span>52 week low <br/><strong className="text-sm text-slate-900">{f.fiftyTwoWeekLow || '-'}</strong></span>
-                      <span className="text-right">52 week high <br/><strong className="text-sm text-slate-900">{f.fiftyTwoWeekHigh || '-'}</strong></span>
+                <div className="mb-8 border-b border-slate-100 dark:border-slate-800 pb-8">
+                   <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
+                      <span>52 week low <br/><strong className="text-sm text-slate-900 dark:text-white">{f.fiftyTwoWeekLow || '-'}</strong></span>
+                      <span className="text-right">52 week high <br/><strong className="text-sm text-slate-900 dark:text-white">{f.fiftyTwoWeekHigh || '-'}</strong></span>
                    </div>
-                   <div className="h-1.5 w-full bg-slate-100 rounded-full relative">
-                      <div className="absolute top-1/2 left-2/3 -translate-y-1/2 w-2 h-2 bg-slate-700 rotate-45 transform"></div>
+                   <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full relative">
+                      <div className="absolute top-1/2 left-2/3 -translate-y-1/2 w-2 h-2 bg-slate-700 dark:bg-slate-400 rotate-45 transform"></div>
                    </div>
                 </div>
 
                 <div className="grid grid-cols-5 gap-4 mb-8 text-sm">
-                   <div><div className="text-slate-500 mb-1">Open price</div><div className="font-semibold">{f.regularMarketOpen || '-'}</div></div>
-                   <div><div className="text-slate-500 mb-1">Previous close</div><div className="font-semibold">{f.previousClose || '-'}</div></div>
-                   <div><div className="text-slate-500 mb-1">Live volume</div><div className="font-semibold">{f.regularMarketVolume || '-'}</div></div>
-                   <div><div className="text-slate-500 mb-1">Lower circuit</div><div className="font-semibold">-</div></div>
-                   <div><div className="text-slate-500 mb-1">Upper circuit</div><div className="font-semibold">-</div></div>
+                   <div><div className="text-slate-500 dark:text-slate-400 mb-1">Open price</div><div className="font-semibold text-slate-900 dark:text-white">{f.regularMarketOpen || '-'}</div></div>
+                   <div><div className="text-slate-500 dark:text-slate-400 mb-1">Previous close</div><div className="font-semibold text-slate-900 dark:text-white">{f.previousClose || '-'}</div></div>
+                   <div><div className="text-slate-500 dark:text-slate-400 mb-1">Live volume</div><div className="font-semibold text-slate-900 dark:text-white">{f.regularMarketVolume || '-'}</div></div>
+                   <div><div className="text-slate-500 dark:text-slate-400 mb-1">Lower circuit</div><div className="font-semibold text-slate-900 dark:text-white">-</div></div>
+                   <div><div className="text-slate-500 dark:text-slate-400 mb-1">Upper circuit</div><div className="font-semibold text-slate-900 dark:text-white">-</div></div>
                 </div>
 
-                <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-1 mt-8">Fundamentals <span className="material-symbols-outlined text-sm text-slate-400">info</span></h3>
+                <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-1 mt-8">Fundamentals <span className="material-symbols-outlined text-sm text-slate-400">info</span></h3>
                 
-                <div className="grid grid-cols-2 gap-x-12 gap-y-4 text-sm">
-                   <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
-                      <span className="text-slate-500">Market Cap</span>
+                <div className="grid grid-cols-2 gap-x-12 gap-y-4 text-sm text-slate-900 dark:text-white">
+                   <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-slate-500 dark:text-slate-400">Market Cap</span>
                       <span className="font-semibold">{f.marketCap ? `₹${(f.marketCap/10000000).toFixed(0)}Cr` : '-'}</span>
                    </div>
-                   <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
-                      <span className="text-slate-500">ROE</span>
+                   <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-slate-500 dark:text-slate-400">ROE</span>
                       <span className="font-semibold">{f.returnOnEquity ? `${(f.returnOnEquity*100).toFixed(2)}%` : '-'}</span>
                    </div>
-                   <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
-                      <span className="text-slate-500">P/E Ratio(TTM)</span>
+                   <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-slate-500 dark:text-slate-400">P/E Ratio(TTM)</span>
                       <span className="font-semibold">{f.trailingPE ? f.trailingPE.toFixed(2) : '-'}</span>
                    </div>
-                   <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
-                      <span className="text-slate-500">EPS(TTM)</span>
+                   <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-slate-500 dark:text-slate-400">EPS(TTM)</span>
                       <span className="font-semibold">{f.trailingEps ? f.trailingEps.toFixed(2) : '-'}</span>
                    </div>
-                   <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
-                      <span className="text-slate-500">P/B Ratio</span>
+                   <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-slate-500 dark:text-slate-400">P/B Ratio</span>
                       <span className="font-semibold">{f.priceToBook ? f.priceToBook.toFixed(2) : '-'}</span>
                    </div>
-                   <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
-                      <span className="text-slate-500">Dividend Yield</span>
+                   <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-slate-500 dark:text-slate-400">Dividend Yield</span>
                       <span className="font-semibold">{f.dividendYield ? `${(f.dividendYield*100).toFixed(2)}%` : '0.00%'}</span>
                    </div>
-                   <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
-                      <span className="text-slate-500">Industry P/E</span>
+                   <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-slate-500 dark:text-slate-400">Industry P/E</span>
                       <span className="font-semibold">-</span>
                    </div>
-                   <div className="flex justify-between border-b border-dashed border-slate-200 pb-2">
-                      <span className="text-slate-500">Book Value</span>
+                   <div className="flex justify-between border-b border-dashed border-slate-200 dark:border-slate-800 pb-2">
+                      <span className="text-slate-500 dark:text-slate-400">Book Value</span>
                       <span className="font-semibold">{f.bookValue ? f.bookValue.toFixed(2) : '-'}</span>
                    </div>
                 </div>
@@ -321,36 +321,36 @@ export default function StockSearch() {
 
            {/* USP 2: Stability Analysis Card */}
            {r.stability && (
-             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-               <h4 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
-                 <span className="material-symbols-outlined text-indigo-500">show_chart</span>
+             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm transition-colors">
+               <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+                 <span className="material-symbols-outlined text-indigo-500 dark:text-indigo-400">show_chart</span>
                  Stability Analysis
                </h4>
                <div className="flex items-center justify-between mb-4">
-                 <span className="text-sm text-slate-500">Stability Rating</span>
-                 <span className={`text-sm font-bold px-3 py-1 rounded-full ${r.stability === 'Stable' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                 <span className="text-sm text-slate-500 dark:text-slate-400">Stability Rating</span>
+                 <span className={`text-sm font-bold px-3 py-1 rounded-full ${r.stability === 'Stable' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'}`}>
                    {r.stability}
                  </span>
                </div>
-               <div className="space-y-3 text-sm">
+               <div className="space-y-3 text-sm text-slate-900 dark:text-white">
                  <div className="flex justify-between">
-                   <span className="text-slate-500">Volatility</span>
+                   <span className="text-slate-500 dark:text-slate-400">Volatility</span>
                    <span className="font-semibold">{r.volatility ? `${(r.volatility*100).toFixed(2)}%` : '-'}</span>
                  </div>
                  <div className="flex justify-between">
-                   <span className="text-slate-500">Anomaly Frequency</span>
+                   <span className="text-slate-500 dark:text-slate-400">Anomaly Frequency</span>
                    <span className="font-semibold">{r.anomaly_ratio !== undefined ? `${(r.anomaly_ratio*100).toFixed(1)}%` : '-'}</span>
                  </div>
                  <div className="flex justify-between">
-                   <span className="text-slate-500">Yearly Return</span>
-                   <span className={`font-semibold ${r.yearly_return >= 0 ? 'text-green-700' : 'text-red-600'}`}>{r.yearly_return !== undefined ? `${r.yearly_return}%` : '-'}</span>
+                   <span className="text-slate-500 dark:text-slate-400">Yearly Return</span>
+                   <span className={`font-semibold ${r.yearly_return >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{r.yearly_return !== undefined ? `${r.yearly_return}%` : '-'}</span>
                  </div>
                  <div className="flex justify-between">
-                   <span className="text-slate-500">Trend</span>
+                   <span className="text-slate-500 dark:text-slate-400">Trend</span>
                    <span className="font-semibold capitalize">{r.trend || '-'}</span>
                  </div>
                </div>
-               <p className="mt-4 text-xs text-slate-400 italic border-t border-slate-100 pt-3">
+               <p className="mt-4 text-xs text-slate-400 dark:text-slate-500 italic border-t border-slate-100 dark:border-slate-800 pt-3">
                  {r.stability === 'Stable' ? '✓ This asset shows consistent, predictable behavior — ideal for medium-term holding.' : '⚠ This asset shows irregular trading patterns. Not recommended for low-risk portfolios.'}
                </p>
              </div>
@@ -358,26 +358,26 @@ export default function StockSearch() {
 
            {/* USP 6: Explainable AI */}
            {r.risk && (
-             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
                <button
                  onClick={() => setShowReasoning(!showReasoning)}
-                 className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors"
+                 className="w-full flex items-center justify-between p-5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                >
                  <div className="flex items-center gap-2">
-                   <span className="material-symbols-outlined text-blue-600">psychology</span>
-                   <span className="font-bold text-slate-900 text-sm">Why is this risk {r.risk}?</span>
+                   <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">psychology</span>
+                   <span className="font-bold text-slate-900 dark:text-white text-sm">Why is this risk {r.risk}?</span>
                  </div>
-                 <span className="material-symbols-outlined text-slate-400 transition-transform" style={{transform: showReasoning ? 'rotate(180deg)' : 'rotate(0)'}}>
+                 <span className="material-symbols-outlined text-slate-400 dark:text-slate-500 transition-transform" style={{transform: showReasoning ? 'rotate(180deg)' : 'rotate(0)'}}>
                    expand_more
                  </span>
                </button>
                {showReasoning && (
-                 <div className="px-5 pb-5 border-t border-slate-100">
-                   <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mt-4 mb-3">AI Reasoning (Explainable AI)</p>
+                 <div className="px-5 pb-5 border-t border-slate-100 dark:border-slate-800">
+                   <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mt-4 mb-3">AI Reasoning (Explainable AI)</p>
                    <ul className="space-y-3">
                      {aiReasoning().map((reason, i) => (
-                       <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                         <span className="material-symbols-outlined text-blue-400 text-base mt-0.5 shrink-0">arrow_right</span>
+                       <li key={i} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                         <span className="material-symbols-outlined text-blue-400 dark:text-blue-500 text-base mt-0.5 shrink-0">arrow_right</span>
                          {reason}
                        </li>
                      ))}
@@ -387,26 +387,26 @@ export default function StockSearch() {
              </div>
            )}
 
-           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center">
-              <div className="w-48 h-32 mx-auto bg-blue-50 rounded-lg flex items-center justify-center text-blue-300 mb-6 border border-blue-100">
+           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 text-center transition-colors">
+              <div className="w-48 h-32 mx-auto bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center text-blue-300 dark:text-blue-500 mb-6 border border-blue-100 dark:border-blue-900/50">
                  <span className="material-symbols-outlined text-6xl">location_city</span>
               </div>
-              <h3 className="text-xl font-bold mb-2">Want to invest in this stock?</h3>
-              <p className="text-sm text-slate-500 mb-6">Open a free Demat account in minutes to start investing in stocks.</p>
+              <h3 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">Want to invest in this stock?</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Open a free Demat account in minutes to start investing in stocks.</p>
               <button className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-3 rounded-lg transition-colors">
                 Buy now
               </button>
 
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                 <div className="flex items-center justify-between text-left border border-slate-200 rounded-lg p-4 cursor-pointer hover:bg-slate-50">
+              <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+                 <div className="flex items-center justify-between text-left border border-slate-200 dark:border-slate-700 rounded-lg p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     <div className="flex items-center gap-3">
-                       <span className="material-symbols-outlined text-slate-400">calendar_month</span>
+                       <span className="material-symbols-outlined text-slate-400 dark:text-slate-500">calendar_month</span>
                        <div>
-                          <p className="text-sm font-bold text-slate-900">Create Stock SIP</p>
-                          <p className="text-xs text-slate-500">Automate your investments</p>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">Create Stock SIP</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Automate your investments</p>
                        </div>
                     </div>
-                    <span className="material-symbols-outlined text-slate-400">chevron_right</span>
+                    <span className="material-symbols-outlined text-slate-400 dark:text-slate-500">chevron_right</span>
                  </div>
               </div>
            </div>
