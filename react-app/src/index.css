@@ -1,6 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
+/* Enable manual dark mode via the .dark class in Tailwind v4 */
+@variant dark (&:is(.dark *));
+
 @theme {
+  --font-sans: 'Inter', sans-serif;
+  
   --color-tertiary: #bb0018;
   --color-surface: #f8f9fa;
   --color-background: #f8f9fa;
@@ -16,4 +22,9 @@
   --color-surface-container-low: #f3f4f5;
   --color-secondary-container: #85fa51;
   --color-on-secondary-container: #287100;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  @apply bg-slate-50 dark:bg-slate-950 transition-colors duration-300;
 }

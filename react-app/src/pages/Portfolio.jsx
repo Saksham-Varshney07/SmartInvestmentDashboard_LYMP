@@ -138,8 +138,8 @@ export default function Portfolio() {
     <div className="max-w-[1440px] mx-auto px-6 py-8">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Your Portfolio</h1>
-          <p className="text-slate-500 mt-1">Manage your holdings and track performance.</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Your Portfolio</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your holdings and track performance.</p>
         </div>
         <button 
           onClick={() => setShowTxModal(true)} 
@@ -152,36 +152,36 @@ export default function Portfolio() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Col: Assets */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
              <div className="flex justify-between items-center mb-6">
-               <h3 className="text-lg font-bold text-slate-900">Current Holdings</h3>
+               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Current Holdings</h3>
                <button onClick={fetchPortfolio} className="text-slate-400 hover:text-blue-600 transition-colors">
                   <span className={`material-symbols-outlined ${isRefreshing ? 'animate-spin text-blue-600' : ''}`}>refresh</span>
                </button>
              </div>
              
              {portfolio.assets.length === 0 ? (
-                <div className="border border-dashed border-slate-300 rounded-xl p-12 text-center flex flex-col items-center">
-                   <span className="material-symbols-outlined text-4xl text-slate-300 mb-3">account_balance_wallet</span>
-                   <h3 className="text-lg font-bold text-slate-700">No assets in portfolio</h3>
+                <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-12 text-center flex flex-col items-center">
+                   <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-3">account_balance_wallet</span>
+                   <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300">No assets in portfolio</h3>
                    <p className="text-sm text-slate-500 mt-1">Add a transaction to get started.</p>
                 </div>
              ) : (
                 <div className="space-y-4">
                   {portfolio.assets.map((asset, i) => (
-                    <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border border-slate-100 rounded-lg hover:border-blue-100 hover:shadow-md transition-all group">
+                    <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border border-slate-100 dark:border-slate-800 rounded-lg hover:border-blue-100 dark:hover:border-slate-700 hover:shadow-md transition-all group">
                       <div className="flex items-center gap-4">
-                         <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center font-bold text-sm text-slate-700 uppercase">
+                         <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 uppercase transition-colors">
                            {asset.symbol.substring(0,2)}
                          </div>
                          <div>
-                           <h4 className="font-bold text-slate-900">{asset.symbol}</h4>
-                           <p className="text-xs text-slate-500">{asset.shares} shares @ {formatCurrency(asset.live_price)}</p>
+                           <h4 className="font-bold text-slate-900 dark:text-white">{asset.symbol}</h4>
+                           <p className="text-xs text-slate-500 dark:text-slate-400">{asset.shares} shares @ {formatCurrency(asset.live_price)}</p>
                          </div>
                       </div>
                       <div className="mt-4 sm:mt-0 text-right">
-                         <p className="font-bold text-slate-900">{formatCurrency(asset.current_value)}</p>
-                         <div className={`text-xs font-semibold flex items-center justify-end ${asset.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                         <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(asset.current_value)}</p>
+                         <div className={`text-xs font-semibold flex items-center justify-end ${asset.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                            <span className="material-symbols-outlined text-sm mr-0.5">{asset.profit >= 0 ? 'trending_up' : 'trending_down'}</span> 
                            {Math.abs(asset.profit_pct).toFixed(2)}% ({formatCurrency(Math.abs(asset.profit))})
                          </div>
@@ -195,8 +195,8 @@ export default function Portfolio() {
 
         {/* Right Col: Recent Activity */}
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-             <h3 className="text-lg font-bold text-slate-900 mb-6">Transaction History</h3>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Transaction History</h3>
              <div className="space-y-5">
                {portfolio.recent_activity.length === 0 ? (
                   <div className="text-sm text-slate-400 text-center py-6">No recent transactions.</div>
@@ -204,16 +204,16 @@ export default function Portfolio() {
                  portfolio.recent_activity.map((tx, i) => (
                    <div key={i} className="flex items-center justify-between group">
                      <div className="flex items-center gap-3">
-                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === 'BUY' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30'}`}>
                          <span className="material-symbols-outlined text-lg">{tx.type === 'BUY' ? 'add' : 'remove'}</span>
                        </div>
                        <div>
-                         <p className="text-sm font-bold text-slate-900">{tx.type} {tx.symbol}</p>
-                         <p className="text-xs text-slate-500">{tx.shares} @ {formatCurrency(tx.price)}</p>
+                         <p className="text-sm font-bold text-slate-900 dark:text-white">{tx.type} {tx.symbol}</p>
+                         <p className="text-xs text-slate-500 dark:text-slate-400">{tx.shares} @ {formatCurrency(tx.price)}</p>
                        </div>
                      </div>
                      <div className="flex items-center gap-2">
-                        <p className={`text-sm font-bold ${tx.type === 'BUY' ? 'text-slate-900' : 'text-emerald-600'}`}>
+                        <p className={`text-sm font-bold ${tx.type === 'BUY' ? 'text-slate-900 dark:text-white' : 'text-emerald-600 dark:text-emerald-400'}`}>
                           {tx.type === 'BUY' ? '-' : '+'}{formatCurrency(tx.total)}
                         </p>
                         <div className="hidden group-hover:flex items-center gap-1">
@@ -232,26 +232,26 @@ export default function Portfolio() {
       {/* Transaction Modal */}
       {showTxModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100">
-              <h3 className="text-xl font-bold text-slate-900">{txForm.id ? 'Edit Transaction' : 'Add Transaction'}</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-800 transition-colors">
+            <div className="flex justify-between items-center p-6 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">{txForm.id ? 'Edit Transaction' : 'Add Transaction'}</h3>
               <button onClick={() => {
                   setShowTxModal(false);
                   setTxForm({ id: null, symbol: '', transaction_type: 'BUY', shares: '', price_at_purchase: '' });
-                }} className="text-slate-400 hover:text-slate-600">
+                }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
             <form onSubmit={submitTransaction} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 relative" ref={txSearchRef}>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Asset Symbol</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Asset Symbol</label>
                   <input 
                     type="text" 
                     value={txForm.symbol}
                     onChange={handleTxSearchChange}
                     onFocus={() => { if(txForm.symbol.length >= 2) setShowTxSuggestions(true); }}
-                    className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+                    className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none uppercase"
                     placeholder="e.g. RELIANCE.NS"
                     required
                   />
@@ -278,34 +278,34 @@ export default function Portfolio() {
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type</label>
                   <select 
                     value={txForm.transaction_type}
                     onChange={e => setTxForm({...txForm, transaction_type: e.target.value})}
-                    className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none [&>option]:bg-white dark:[&>option]:bg-slate-900"
                   >
                     <option value="BUY">Buy</option>
                     <option value="SELL">Sell</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Quantity</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Quantity</label>
                   <input 
                     type="number" step="any" min="0.0001"
                     value={txForm.shares}
                     onChange={e => setTxForm({...txForm, shares: e.target.value})}
-                    className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
                     placeholder="0.0"
                     required
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Price per share (₹)</label>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Price per share (₹)</label>
                   <input 
                     type="number" step="any" min="0.01"
                     value={txForm.price_at_purchase}
                     onChange={e => setTxForm({...txForm, price_at_purchase: e.target.value})}
-                    className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
                     placeholder="₹ 0.00"
                     required
                   />
