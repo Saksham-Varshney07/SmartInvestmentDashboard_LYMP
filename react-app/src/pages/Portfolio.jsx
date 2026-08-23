@@ -10,6 +10,7 @@ export default function Portfolio() {
     recent_activity: []
   });
 
+  const [portfolioType, setPortfolioType] = useState('real');
   const [showTxModal, setShowTxModal] = useState(false);
   const [txForm, setTxForm] = useState({ id: null, symbol: '', transaction_type: 'BUY', shares: '', price_at_purchase: '' });
   const [txSuggestions, setTxSuggestions] = useState([]);
@@ -34,7 +35,7 @@ export default function Portfolio() {
     if (!currentUser) return;
     setIsRefreshing(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/portfolio/${currentUser.user_id}`);
+      const res = await fetch(`http://127.0.0.1:8000/api/portfolio/${currentUser.user_id}?type=${portfolioType}`);
       const data = await res.json();
       if (data.status === 'success') {
         setPortfolio(data);
@@ -52,7 +53,7 @@ export default function Portfolio() {
       const interval = setInterval(fetchPortfolio, 5000); 
       return () => clearInterval(interval);
     }
-  }, [currentUser]);
+  }, [currentUser, portfolioType]);
 
   const submitTransaction = async (e) => {
     e.preventDefault();
@@ -73,7 +74,8 @@ export default function Portfolio() {
           symbol: txForm.symbol,
           transaction_type: txForm.transaction_type,
           shares: parseFloat(txForm.shares),
-          price_at_purchase: parseFloat(txForm.price_at_purchase)
+          price_at_purchase: parseFloat(txForm.price_at_purchase),
+          portfolio_type: portfolioType
         })
       });
       const data = await res.json();
@@ -138,8 +140,26 @@ export default function Portfolio() {
     <div className="max-w-[1440px] mx-auto px-6 py-8">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Your Portfolio</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your holdings and track performance.</p>
+          <div className="flex items-center gap-4 mb-2">
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Your Portfolio</h1>
+            <div className="flex bg-slate-200 dark:bg-slate-800 rounded-lg p-1">
+              <button 
+                onClick={() => setPortfolioType('real')}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${portfolioType === 'real' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+              >
+                Real
+              </button>
+              <button 
+                onClick={() => setPortfolioType('sandbox')}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${portfolioType === 'sandbox' ? 'bg-[#059669] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+              >
+                Sandbox
+              </button>
+            </div>
+          </div>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
+            {portfolioType === 'real' ? 'Manage your holdings and track performance.' : 'Simulate investments and test AI blueprints risk-free.'}
+          </p>
         </div>
         <button 
           onClick={() => setShowTxModal(true)} 

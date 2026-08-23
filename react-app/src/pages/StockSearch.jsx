@@ -1,14 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useContext } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function StockSearch() {
   const { stockname } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('1M');
   const [fetchError, setFetchError] = useState(null);
   const [showReasoning, setShowReasoning] = useState(false);
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  const { currentUser } = useContext(AuthContext);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -107,9 +111,9 @@ export default function StockSearch() {
   const r = data?.analysis || {};
 
   const riskMeta = {
-    High: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: 'warning', dot: 'bg-red-500' },
-    Moderate: { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', icon: 'info', dot: 'bg-yellow-500' },
-    Low: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', icon: 'verified_user', dot: 'bg-emerald-500' },
+    High: { bg: 'bg-red-50 dark:bg-red-900/30', border: 'border-red-200 dark:border-red-800', text: 'text-red-700 dark:text-red-400', icon: 'warning', dot: 'bg-red-500' },
+    Moderate: { bg: 'bg-yellow-50 dark:bg-yellow-900/30', border: 'border-yellow-200 dark:border-yellow-800', text: 'text-yellow-700 dark:text-yellow-400', icon: 'info', dot: 'bg-yellow-500' },
+    Low: { bg: 'bg-emerald-50 dark:bg-emerald-900/30', border: 'border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: 'verified_user', dot: 'bg-emerald-500' },
   };
   const rm = riskMeta[r.risk] || riskMeta['Moderate'];
 
@@ -392,13 +396,32 @@ export default function StockSearch() {
                  <span className="material-symbols-outlined text-6xl">location_city</span>
               </div>
               <h3 className="text-xl font-bold mb-2 text-slate-900 dark:text-white">Want to invest in this stock?</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Open a free Demat account in minutes to start investing in stocks.</p>
-              <button className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-3 rounded-lg transition-colors">
-                Buy now
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Test the performance of this asset in your Sandbox Portfolio.</p>
+              <button onClick={async () => {
+                if (!currentUser) return;
+                try {
+                  await fetch('http://127.0.0.1:8000/api/portfolio/transaction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      user_id: currentUser.user_id,
+                      symbol: f.shortName || stockname.toUpperCase(),
+                      transaction_type: 'BUY',
+                      shares: 10,
+                      price_at_purchase: latestPrice,
+                      portfolio_type: 'sandbox'
+                    })
+                  });
+                  setShowBuyModal(true);
+                } catch (e) {
+                  console.error(e);
+                }
+              }} className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-3 rounded-lg transition-colors">
+                Buy 10 Shares (Sandbox)
               </button>
 
               <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
-                 <div className="flex items-center justify-between text-left border border-slate-200 dark:border-slate-700 rounded-lg p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                 <div onClick={() => navigate('/sipplanner')} className="flex items-center justify-between text-left border border-slate-200 dark:border-slate-700 rounded-lg p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     <div className="flex items-center gap-3">
                        <span className="material-symbols-outlined text-slate-400 dark:text-slate-500">calendar_month</span>
                        <div>
@@ -413,6 +436,30 @@ export default function StockSearch() {
         </div>
       </div>
       </main>
+
+      {/* Custom Buy Modal */}
+      {showBuyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden scale-in">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="material-symbols-outlined text-3xl">check_circle</span>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Purchase Successful</h3>
+              <p className="text-slate-500 dark:text-slate-400 mb-6">
+                <strong>{f.shortName || stockname.toUpperCase()}</strong> has been added to your Sandbox Portfolio! 
+                (Note: Sandbox mode uses virtual currency).
+              </p>
+              <button 
+                onClick={() => setShowBuyModal(false)} 
+                className="w-full px-4 py-3 rounded-xl font-bold text-white bg-[#059669] hover:bg-[#047857] transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

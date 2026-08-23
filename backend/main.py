@@ -21,6 +21,7 @@ class TransactionRequest(BaseModel):
     transaction_type: str
     shares: float
     price_at_purchase: float
+    portfolio_type: str = 'real'
 
 class TransactionEditRequest(BaseModel):
     symbol: str
@@ -84,7 +85,19 @@ def run_single_analysis(symbol: str, db: Session=Depends(get_db)):
             market_entries.append(market_entry)
         analysis_data = None
         for item in final_output:
-            analysis_entry = models.RiskScore(**item)
+            analysis_entry = models.RiskScore(
+                ticker=item['asset'],
+                risk_level=item['risk'],
+                stability=item['stability'],
+                trend=item['trend'],
+                returns=float(item['returns']),
+                yearly_return=float(item['yearly_return']),
+                volatility=float(item['volatility']),
+                average_price=float(item['average_price']),
+                latest_price=float(item['latest_price']),
+                anomaly_ratio=float(item['anomaly_ratio']),
+                stars=int(item['stars'])
+            )
             db.merge(analysis_entry)
             analysis_data = item
         db.commit()
@@ -118,7 +131,19 @@ def execute_pipeline(db: Session=Depends(get_db)):
             market_entry = models.AssetPrice(ticker=str(row['Symbol']), date=row['Date'], open=float(row['Open']), high=float(row['High']), low=float(row['Low']), close=float(row['Close']), volume=int(row['Volume']))
             db.merge(market_entry)
         for item in final_output:
-            analysis_entry = models.RiskScore(**item)
+            analysis_entry = models.RiskScore(
+                ticker=item['asset'],
+                risk_level=item['risk'],
+                stability=item['stability'],
+                trend=item['trend'],
+                returns=float(item['returns']),
+                yearly_return=float(item['yearly_return']),
+                volatility=float(item['volatility']),
+                average_price=float(item['average_price']),
+                latest_price=float(item['latest_price']),
+                anomaly_ratio=float(item['anomaly_ratio']),
+                stars=int(item['stars'])
+            )
             db.merge(analysis_entry)
         db.commit()
         return {'status': 'success', 'message': f'Pipeline executed successfully for {len(final_output)} assets.'}
@@ -150,21 +175,24 @@ def login(req: LoginRequest, db: Session=Depends(get_db)):
         db.refresh(user)
         
     # 2. Ensure User has a default Portfolio
-    portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == user.id).first()
-    if not portfolio:
-        portfolio = models.Portfolio(
-            portfolio_name=f"{user.username}'s Portfolio", 
-            user_id=user.id
-        )
-        db.add(portfolio)
-        db.commit()
-        db.refresh(portfolio)
+    real_portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == user.id, models.Portfolio.portfolio_name == 'Real Portfolio').first()
+    if not real_portfolio:
+        real_portfolio = models.Portfolio(portfolio_name='Real Portfolio', user_id=user.id)
+        db.add(real_portfolio)
+        
+    sandbox_portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == user.id, models.Portfolio.portfolio_name == 'Sandbox Portfolio').first()
+    if not sandbox_portfolio:
+        sandbox_portfolio = models.Portfolio(portfolio_name='Sandbox Portfolio', user_id=user.id)
+        db.add(sandbox_portfolio)
+        
+    db.commit()
+    db.refresh(real_portfolio)
 
     # 3. Return combined profile
     return {
         'status': 'success', 
         'user_id': user.id, 
-        'portfolio_id': portfolio.id,
+        'portfolio_id': real_portfolio.id,
         'username': user.username,
         'full_name': user.full_name,
         'risk_profile': user.risk_profile,
@@ -173,7 +201,8 @@ def login(req: LoginRequest, db: Session=Depends(get_db)):
 
 @app.post('/api/portfolio/transaction')
 def add_transaction(req: TransactionRequest, db: Session=Depends(get_db)):
-    portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == req.user_id).first()
+    target_name = 'Real Portfolio' if req.portfolio_type == 'real' else 'Sandbox Portfolio'
+    portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == req.user_id, models.Portfolio.portfolio_name == target_name).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
     
@@ -223,10 +252,13 @@ def delete_transaction(tx_id: int, db: Session=Depends(get_db)):
 # Simple memory cache for live prices to avoid Yahoo rate limits (expires every 1 minute)
 price_cache = {}
 @app.get('/api/portfolio/{user_id}')
-def get_portfolio(user_id: int, db: Session=Depends(get_db)):
-    portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == user_id).first()
-    if not portfolio:
-        return {'status': 'success', 'portfolio': [], 'metrics': {}}
+def get_portfolio(user_id: int, type: str = 'real', db: Session=Depends(get_db)):
+    portfolios = db.query(models.Portfolio).filter(models.Portfolio.user_id == user_id).all()
+    if not portfolios:
+        return {'status': 'success', 'summary': {'total_investment': 0, 'portfolio_value': 0, 'total_profit': 0, 'total_profit_pct': 0}, 'assets': [], 'recent_activity': []}
+        
+    target_name = 'Real Portfolio' if type == 'real' else 'Sandbox Portfolio'
+    portfolio = next((p for p in portfolios if p.portfolio_name == target_name), portfolios[0])
 
     transactions = db.query(models.PortfolioAsset).filter(models.PortfolioAsset.portfolio_id == portfolio.id).all()
     
@@ -386,6 +418,15 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
             
         counter = collections.Counter(sectors)
         
+        # Calculate Sector Breakdown
+        sector_breakdown = []
+        for sector, count in counter.items():
+            sector_breakdown.append({
+                "name": sector,
+                "percentage": round((count / len(sectors)) * 100)
+            })
+        sector_breakdown.sort(key=lambda x: x['percentage'], reverse=True)
+        
         warnings_array = []
         high_correlation = False
         
@@ -399,6 +440,22 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
             
         if not warnings_array:
             warnings_array.append("Your chosen stock universe shows excellent sector diversification and low correlation overlap.")
+            
+        # Generate heuristic correlation matrix for heatmap
+        correlation_matrix = []
+        for i, s1 in enumerate(payload.stocks):
+            row = {'name': s1, 'data': []}
+            sec1 = sector_mapping.get(s1.upper().replace('.NS', '') + '.NS', 'Other')
+            for j, s2 in enumerate(payload.stocks):
+                sec2 = sector_mapping.get(s2.upper().replace('.NS', '') + '.NS', 'Other')
+                if i == j:
+                    corr = 1.0
+                elif sec1 == sec2 and sec1 != 'Other':
+                    corr = 0.85
+                else:
+                    corr = 0.25
+                row['data'].append({'x': s2, 'y': corr})
+            correlation_matrix.append(row)
             
         # 2. Extract Real ML Metrics from Database
         user_stocks_data = []
@@ -437,7 +494,7 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         def generate_user_allocations(slice_budget, color_start="#2563eb"):
             # If no stocks, provide generic
             if not user_stocks_data:
-                 return [{"name": "User Selection", "percentage": 100, "amount": slice_budget, "color": color_start}]
+                 return [{"name": "User Selection", "ticker": "USER.SEL", "percentage": 100, "amount": slice_budget, "color": color_start}]
                  
             allocs = []
             # some color variations
@@ -446,6 +503,7 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
                 amt = slice_budget * s['weight']
                 allocs.append({
                     "name": s['symbol'],
+                    "ticker": s['symbol'],
                     "percentage": round(s['weight'] * 100, 1),
                     "amount": round(amt, 2),
                     "color": colors[i % len(colors)]
@@ -458,8 +516,8 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
             "name": "The Defender (Low Risk)",
             "description": "80% Large Cap & Debt, 20% Growth",
             "allocations": [
-                {"name": "Gov Bonds / FDs", "percentage": 40, "amount": b * 0.40, "color": "#1e293b"},
-                {"name": "Bluechip / Large Cap", "percentage": 40, "amount": b * 0.40, "color": "#475569"},
+                {"name": "Gov Bonds / FDs", "ticker": "GOV.BND", "percentage": 40, "amount": b * 0.40, "color": "#1e293b"},
+                {"name": "Bluechip / Large Cap", "ticker": "LARGE.CAP", "percentage": 40, "amount": b * 0.40, "color": "#475569"},
             ] + generate_user_allocations(def_user_slice),
             "projected_return_pa": round((0.4 * 6.5) + (0.4 * 10.0) + (0.2 * avg_user_return), 1)
         }
@@ -470,8 +528,8 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
             "name": "The Balanced (AI Optimum)",
             "description": "60% Equity mixes, 40% Stable backbone",
             "allocations": [
-                {"name": "Index Funds (NIFTY 50)", "percentage": 40, "amount": b * 0.40, "color": "#0284c7"},
-                {"name": "Gold / Liquid", "percentage": 20, "amount": b * 0.20, "color": "#eab308"}
+                {"name": "Index Funds (NIFTY 50)", "ticker": "NIFTY50.IDX", "percentage": 40, "amount": b * 0.40, "color": "#0284c7"},
+                {"name": "Gold / Liquid", "ticker": "GOLD.ETF", "percentage": 20, "amount": b * 0.20, "color": "#eab308"}
             ] + generate_user_allocations(bal_user_slice),
             "projected_return_pa": round((0.4 * 12.0) + (0.2 * 5.0) + (0.4 * avg_user_return), 1)
         }
@@ -482,18 +540,53 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
             "name": "The Aggressor (High Risk)",
             "description": "85% Aggressive Equity, 15% Support",
             "allocations": [
-                {"name": "Small/Mid Cap Funds", "percentage": 25, "amount": b * 0.25, "color": "#9333ea"},
-                {"name": "Cash Reserve", "percentage": 15, "amount": b * 0.15, "color": "#cbd5e1"}
+                {"name": "Small/Mid Cap Funds", "ticker": "SMALL.CAP", "percentage": 25, "amount": b * 0.25, "color": "#9333ea"},
+                {"name": "Cash Reserve", "ticker": "CASH", "percentage": 15, "amount": b * 0.15, "color": "#cbd5e1"}
             ] + generate_user_allocations(agg_user_slice),
             "projected_return_pa": round((0.25 * 18.0) + (0.15 * 4.0) + (0.60 * avg_user_return), 1)
         }
         
+        # Drawdown Simulation Data (12 months heuristic)
+        simulation_data = {
+            "categories": [],
+            "user_portfolio": [],
+            "ai_balanced": []
+        }
+        
+        # Base values
+        user_val = 100000
+        ai_val = 100000
+        
+        import random
+        # 12 months ago to now
+        for i in range(12):
+            month_date = datetime.now() - timedelta(days=30*(11-i))
+            simulation_data["categories"].append(month_date.strftime("%b %Y"))
+            
+            # Month 6-7 is our "Crash"
+            if i in [5, 6]:
+                # User portfolio drops heavily based on correlation
+                drop = random.uniform(0.15, 0.25) if high_correlation else random.uniform(0.10, 0.15)
+                user_val = user_val * (1 - drop)
+                # AI Balanced drops less due to bonds
+                ai_val = ai_val * (1 - random.uniform(0.04, 0.08))
+            else:
+                # Normal growth
+                user_val = user_val * (1 + random.uniform(0.01, 0.04))
+                ai_val = ai_val * (1 + random.uniform(0.01, 0.025))
+                
+            simulation_data["user_portfolio"].append(round(user_val))
+            simulation_data["ai_balanced"].append(round(ai_val))
+
         return {
             'status': 'success',
             'analysis': {
                 'has_high_correlation': high_correlation,
                 'ai_warnings': warnings_array,
                 'user_profile_matched': payload.risk_profile,
+                'correlation_matrix': correlation_matrix,
+                'sector_breakdown': sector_breakdown,
+                'simulation_data': simulation_data,
                 'portfolios': {
                     'safe': the_defender,
                     'balanced': the_balanced,
@@ -504,4 +597,49 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         
     except Exception as e:
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+class BlueprintApplyRequest(BaseModel):
+    allocations: List[dict]
+
+@app.post('/api/portfolio/{user_id}/apply_blueprint')
+def apply_blueprint(user_id: int, req: BlueprintApplyRequest, type: str = 'sandbox', db: Session=Depends(get_db)):
+    """
+    Clears current portfolio and applies the AI Blueprint
+    """
+    try:
+        target_name = 'Real Portfolio' if type == 'real' else 'Sandbox Portfolio'
+        portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == user_id, models.Portfolio.portfolio_name == target_name).first()
+        if not portfolio:
+            raise HTTPException(status_code=404, detail="Portfolio not found")
+        
+        # Delete existing assets
+        db.query(models.PortfolioAsset).filter(models.PortfolioAsset.portfolio_id == portfolio.id).delete()
+        db.commit()
+        
+        # Insert new blueprint transactions
+        for alloc in req.allocations:
+            amount = alloc.get('amount', 0)
+            if amount <= 0: continue
+            
+            ticker = alloc.get('ticker')
+            if not ticker: ticker = alloc.get('name', 'UNKNOWN')
+            
+            # Since we don't know real live prices of generics, assume 1 unit costs 100 for simplicity
+            purchase_price = 100.0
+            shares = amount / purchase_price
+            
+            asset = models.PortfolioAsset(
+                portfolio_id=portfolio.id,
+                ticker=ticker,
+                shares=shares,
+                purchase_price=purchase_price,
+                purchase_date=datetime.now()
+            )
+            db.add(asset)
+            
+        db.commit()
+        return {'status': 'success', 'message': 'Blueprint applied successfully.'}
+    except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
