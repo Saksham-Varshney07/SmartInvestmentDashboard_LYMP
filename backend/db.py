@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 # Member 3 Task: Link to PostgreSQL
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:saki007@localhost:5432/postgres')
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres:sidd123@localhost:5432/postgres')
 
 engine = None
 SessionLocal = None

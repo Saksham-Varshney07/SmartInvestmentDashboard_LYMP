@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Link } from 'react-router-dom';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import { Link, useNavigate } from 'react-router-dom';
+import ReactApexChart from 'react-apexcharts';
 import { AuthContext } from '../context/AuthContext';
 
 export default function RiskAnalysis() {
   const { currentUser } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const mapRisk = (profile) => {
     if (profile === 'Defender') return 'The Defender';
@@ -18,16 +19,17 @@ export default function RiskAnalysis() {
   };
 
   const [step, setStep] = useState(currentUser?.risk_profile ? 2 : 1);
-  const [budget, setBudget] = useState(100000);
-  const [duration, setDuration] = useState(currentUser?.investment_horizon ? mapDuration(currentUser.investment_horizon) : 5);
+  const [stocks, setStocks] = useState([]);
   const [stockInput, setStockInput] = useState('');
-  const [stocks, setStocks] = useState(['RELIANCE.NS', 'TCS.NS', 'INFY.NS']);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [budget, setBudget] = useState(100000);
+  const [duration, setDuration] = useState(5);
   const [riskProfile, setRiskProfile] = useState(currentUser?.risk_profile ? mapRisk(currentUser.risk_profile) : 'Balanced');
   
   const [loading, setLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [confirmApply, setConfirmApply] = useState(null);
 
   useEffect(() => {
     if (!stockInput.trim()) {
@@ -92,46 +94,131 @@ export default function RiskAnalysis() {
     }).format(val);
   };
 
+  const applyBlueprint = async () => {
+    if (!currentUser || !confirmApply) return;
+    
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/portfolio/${currentUser.user_id}/apply_blueprint?type=sandbox`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allocations: confirmApply.allocations })
+      });
+      const data = await response.json();
+      if (data.status === 'success') {
+        alert('Blueprint applied successfully! Redirecting to your portfolio.');
+        navigate('/portfolio');
+      } else {
+        alert('Failed to apply blueprint.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error applying blueprint.');
+    } finally {
+      setConfirmApply(null);
+    }
+  };
+
   const PortfolioCard = ({ portfolio }) => {
+    const chartOptions = {
+      chart: {
+        type: 'donut',
+        animations: {
+          enabled: true,
+          easing: 'easeinout',
+          speed: 800,
+          animateGradually: {
+              enabled: true,
+              delay: 150
+          },
+          dynamicAnimation: {
+              enabled: true,
+              speed: 350
+          }
+        }
+      },
+      labels: portfolio.allocations.map(a => a.name),
+      colors: portfolio.allocations.map(a => a.color),
+      plotOptions: {
+        pie: {
+          donut: {
+            size: '70%',
+            labels: {
+              show: true,
+              name: {
+                show: false
+              },
+              value: {
+                show: true,
+                fontSize: '18px',
+                fontWeight: 600,
+                formatter: function (val) {
+                  return formatCurrency(val)
+                }
+              }
+            }
+          }
+        }
+      },
+      dataLabels: {
+        enabled: false
+      },
+      legend: {
+        show: false
+      },
+      stroke: {
+        width: 0
+      },
+      tooltip: {
+        theme: 'light',
+        y: {
+          formatter: function (val) {
+            return formatCurrency(val)
+          }
+        }
+      }
+    };
+
+    const series = portfolio.allocations.map(a => a.amount);
+
     return (
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-        <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1">{portfolio.name}</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{portfolio.description}</p>
-        
-        <div className="h-40 w-full mb-6 relative">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={portfolio.allocations}
-                innerRadius={50}
-                outerRadius={70}
-                paddingAngle={2}
-                dataKey="amount"
-              >
-                {portfolio.allocations.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <RechartsTooltip formatter={(val) => formatCurrency(val)} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
-            <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">Proj Returns</span>
-            <span className="text-lg font-bold text-slate-800">{portfolio.projected_return_pa}%</span>
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-300 relative">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1">{portfolio.name}</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{portfolio.description}</p>
+          </div>
+          <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-bold tracking-wide whitespace-nowrap">
+            {portfolio.projected_return_pa}% PA
           </div>
         </div>
-
-        <div className="space-y-3">
+        
+        <div className="h-[220px] w-full mb-6 relative flex items-center justify-center">
+          <ReactApexChart options={chartOptions} series={series} type="donut" height="100%" />
+        </div>
+        
+        <div className="space-y-3 w-full">
           {portfolio.allocations.map((alloc, idx) => (
             <div key={idx} className="flex justify-between items-center text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: alloc.color }}></div>
-                <span className="text-slate-700">{alloc.name} ({alloc.percentage}%)</span>
+              <div className="flex items-center gap-2 overflow-hidden mr-2">
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: alloc.color }}></div>
+                <span className="text-slate-700 dark:text-slate-300 truncate font-medium" title={alloc.name}>
+                  {alloc.name} <span className="text-slate-400 font-normal">({alloc.percentage}%)</span>
+                </span>
               </div>
-              <span className="font-semibold text-slate-900">{formatCurrency(alloc.amount)}</span>
+              <span className="font-semibold text-slate-900 dark:text-white shrink-0">{formatCurrency(alloc.amount)}</span>
             </div>
           ))}
         </div>
+        
+        <button 
+          onClick={() => {
+            if (!currentUser) return alert('Please log in first.');
+            setConfirmApply(portfolio);
+          }}
+          className="mt-6 w-full py-3 rounded-lg font-bold text-sm bg-slate-100 hover:bg-blue-600 text-slate-700 hover:text-white dark:bg-slate-800 dark:hover:bg-blue-600 dark:text-slate-300 dark:hover:text-white transition-colors"
+        >
+          Apply to Portfolio
+        </button>
       </div>
     );
   };
@@ -257,39 +344,178 @@ export default function RiskAnalysis() {
           <div className="animate-fade-in">
              <button onClick={() => setStep(2)} className="text-sm text-slate-500 flex items-center mb-6 hover:text-slate-800 transition-colors"><span className="material-symbols-outlined text-[16px] mr-1">arrow_back</span> Edit Portfolio inputs</button>
              
-             {/* Dynamic Alerts Module */}
+             {/* Dynamic Alerts Module - Unified Dark Box */}
              <div className="mb-10 p-6 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl text-white shadow-xl relative overflow-hidden">
                 <span className="material-symbols-outlined absolute -right-4 -top-4 text-[100px] text-slate-700 opacity-20">warning</span>
                 <div className="relative z-10">
                    <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
-                     <span className="material-symbols-outlined text-yellow-500 text-3xl">model_training</span>
-                     AI Diagnostic Report
+                     <span className={`material-symbols-outlined text-3xl ${analysisResult.has_high_correlation ? 'text-amber-500' : 'text-emerald-500'}`}>
+                       {analysisResult.has_high_correlation ? 'warning' : 'verified_user'}
+                     </span>
+                     AI Diagnostic Report - {analysisResult.has_high_correlation ? 'Needs Attention' : 'Optimal'}
                    </h2>
-                   <p className="text-slate-400 mb-6 border-b border-slate-700 pb-4">Analyzed {stocks.length} assets mapped against your {riskProfile} profile.</p>
+                   <p className="text-slate-400 mb-6 border-b border-slate-700 pb-4">
+                     Analyzed {stocks.length} assets mapped against your <strong>{riskProfile}</strong> profile.
+                   </p>
                    
                    <div className="space-y-4">
                      {analysisResult.ai_warnings.map((warning, i) => (
-                       <div key={i} className={`flex items-start gap-4 p-4 rounded-xl border ${analysisResult.has_high_correlation ? 'bg-red-500/10 border-red-500/30' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
-                         <span className={`material-symbols-outlined ${analysisResult.has_high_correlation ? 'text-red-400' : 'text-emerald-400'}`}>
-                            {analysisResult.has_high_correlation ? 'warning' : 'verified_user'}
+                       <div key={i} className={`flex items-start gap-4 p-4 rounded-xl border ${analysisResult.has_high_correlation ? 'bg-amber-500/10 border-amber-500/30' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
+                         <span className={`material-symbols-outlined ${analysisResult.has_high_correlation ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {analysisResult.has_high_correlation ? 'warning' : 'check_circle'}
                          </span>
-                         <p className={`${analysisResult.has_high_correlation ? 'text-red-200' : 'text-emerald-200'} font-medium text-sm leading-relaxed`}>{warning}</p>
+                         <p className={`${analysisResult.has_high_correlation ? 'text-amber-200' : 'text-emerald-200'} font-medium text-sm leading-relaxed`}>{warning}</p>
                        </div>
                      ))}
                    </div>
                 </div>
              </div>
 
+             {/* Correlation Heatmap */}
+             {analysisResult.correlation_matrix && (
+               <div className="mb-12 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-8">
+                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Asset Correlation Matrix</h3>
+                 <p className="text-sm text-slate-500 mb-6">
+                   Darker colors indicate high correlation overlap. If multiple assets move together, diversification is compromised.
+                 </p>
+                 <div className="h-[300px]">
+                   <ReactApexChart 
+                     options={{
+                       chart: { type: 'heatmap', toolbar: { show: false } },
+                       dataLabels: { enabled: true },
+                       colors: ["#dc2626"],
+                       plotOptions: {
+                         heatmap: {
+                           shadeIntensity: 0.5,
+                           radius: 4,
+                           useFillColorAsStroke: false,
+                           colorScale: {
+                             ranges: [
+                               { from: 0.0, to: 0.3, name: 'Low', color: '#10b981' },
+                               { from: 0.31, to: 0.7, name: 'Medium', color: '#f59e0b' },
+                               { from: 0.71, to: 1.0, name: 'High', color: '#ef4444' }
+                             ]
+                           }
+                         }
+                       },
+                       xaxis: { type: 'category' }
+                     }}
+                     series={analysisResult.correlation_matrix}
+                     type="heatmap"
+                     height="100%"
+                   />
+                 </div>
+               </div>
+             )}
+
+             {/* Sector Exposure Breakdown */}
+             {analysisResult.sector_breakdown && (
+               <div className="mb-12 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-8">
+                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Sector Exposure Breakdown</h3>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                   {analysisResult.sector_breakdown.map((sector, i) => (
+                     <div key={i}>
+                       <div className="flex justify-between items-center mb-2">
+                         <span className="font-bold text-slate-700 dark:text-slate-300">{sector.name}</span>
+                         <span className="text-sm font-bold text-slate-900 dark:text-white">{sector.percentage}%</span>
+                       </div>
+                       <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                         <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-1000 ease-out" style={{ width: `${sector.percentage}%` }}></div>
+                       </div>
+                     </div>
+                   ))}
+                 </div>
+               </div>
+             )}
+
              <h2 className="text-2xl font-bold mb-6 text-slate-900 dark:text-white">AI Suggested Allocations</h2>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
                 <PortfolioCard portfolio={analysisResult.portfolios.safe} />
                 <PortfolioCard portfolio={analysisResult.portfolios.balanced} />
                 <PortfolioCard portfolio={analysisResult.portfolios.aggressive} />
              </div>
+
+             {/* Historical Drawdown Simulation */}
+             {analysisResult.simulation_data && (
+               <div className="mb-12 bg-white dark:bg-slate-900 rounded-2xl shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 p-8">
+                 <div className="flex justify-between items-center mb-6">
+                   <div>
+                     <h3 className="text-xl font-bold text-slate-900 dark:text-white">Historical Drawdown Simulation</h3>
+                     <p className="text-sm text-slate-500">How your concentrated stock picks compare to the AI Balanced portfolio during a 12-month trailing stress test (including a simulated market crash).</p>
+                   </div>
+                   <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap">Trailing 12M</div>
+                 </div>
+                 
+                 <div className="h-[350px]">
+                   <ReactApexChart 
+                     options={{
+                       chart: { type: 'area', toolbar: { show: false }, animations: { enabled: true } },
+                       colors: ['#ef4444', '#10b981'],
+                       dataLabels: { enabled: false },
+                       stroke: { curve: 'smooth', width: 3 },
+                       fill: {
+                         type: 'gradient',
+                         gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.0, stops: [0, 90, 100] }
+                       },
+                       xaxis: {
+                         categories: analysisResult.simulation_data.categories,
+                         labels: { style: { colors: '#94a3b8' } }
+                       },
+                       yaxis: {
+                         labels: {
+                           style: { colors: '#94a3b8' },
+                           formatter: (val) => "₹" + (val/1000).toFixed(0) + "k"
+                         }
+                       },
+                       grid: { borderColor: '#334155', strokeDashArray: 4 },
+                       tooltip: { theme: 'dark' },
+                       legend: { position: 'top', horizontalAlign: 'right' }
+                     }}
+                     series={[
+                       { name: 'Your Stock Picks', data: analysisResult.simulation_data.user_portfolio },
+                       { name: 'AI Balanced Portfolio', data: analysisResult.simulation_data.ai_balanced }
+                     ]}
+                     type="area"
+                     height="100%"
+                   />
+                 </div>
+               </div>
+             )}
           </div>
         )}
 
       </main>
+
+      {/* Custom Confirmation Modal */}
+      {confirmApply && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden scale-in">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="material-symbols-outlined text-3xl">swap_calls</span>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Apply Blueprint</h3>
+              <p className="text-slate-500 dark:text-slate-400 mb-6">
+                Are you sure you want to overwrite your real portfolio with <strong>{confirmApply.name}</strong>? This action will reset your current tracked assets to match this AI suggestion.
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setConfirmApply(null)} 
+                  className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={applyBlueprint} 
+                  className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+                >
+                  Confirm & Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
