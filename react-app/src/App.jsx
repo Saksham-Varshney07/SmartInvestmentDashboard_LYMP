@@ -9,11 +9,13 @@ import Account from './pages/Account';
 
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
+import Onboarding from './components/Onboarding';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
+        <Onboarding />
         <Layout>
           <Routes>
             <Route path="/" element={<Dashboard />} />

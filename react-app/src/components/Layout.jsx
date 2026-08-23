@@ -7,12 +7,10 @@ export default function Layout({ children }) {
   const [loginForm, setLoginForm] = useState({ username: '', full_name: '', risk_profile: 'Balanced', investment_horizon: 'Medium-term' });
   const [isSignup, setIsSignup] = useState(false);
   
-  // Theme State (Default White)
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
   });
   
-  // Search State
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -207,15 +205,15 @@ export default function Layout({ children }) {
           <div className="flex items-center gap-8">
             <Link to="/" className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Smart Investment Dashboard</Link>
             <nav className="hidden md:flex gap-6 items-center mt-1">
-              <Link className={getNavClass('/')} to="/">Dashboard</Link>
-              <Link className={getNavClass('/riskanalysis')} to="/riskanalysis">Risk Analysis</Link>
-              <Link className={getNavClass('/portfolio')} to="/portfolio">Portfolio</Link>
-              <Link className={getNavClass('/sipplanner')} to="/sipplanner">SIP Planner</Link>
-              <Link className={getNavClass('/assetexplorer')} to="/assetexplorer">Asset Explorer</Link>
+              <Link id="nav-dashboard" className={getNavClass('/')} to="/">Dashboard</Link>
+              <Link id="nav-riskanalysis" className={getNavClass('/riskanalysis')} to="/riskanalysis">Risk Analysis</Link>
+              <Link id="nav-portfolio" className={getNavClass('/portfolio')} to="/portfolio">Portfolio</Link>
+              <Link id="nav-sipplanner" className={getNavClass('/sipplanner')} to="/sipplanner">SIP Planner</Link>
+              <Link id="nav-assetexplorer" className={getNavClass('/assetexplorer')} to="/assetexplorer">Asset Explorer</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4 relative" ref={searchRef}>
-            <div className="relative hidden sm:block">
+            <div id="nav-search" className="relative hidden sm:block">
               <input 
                 className="bg-slate-100 dark:bg-slate-800 dark:text-white border-none rounded-lg py-1.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500 w-64 outline-none transition-colors" 
                 placeholder="Search markets..." 
