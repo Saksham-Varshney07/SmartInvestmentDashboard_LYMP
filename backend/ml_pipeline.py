@@ -86,7 +86,7 @@ def analyze_risk_and_stability(df):
         else:
             risk = 'Low Risk'
             stars = 5 if yearly_return > 10 else 4
-        results.append({'asset': symbol, 'risk': risk.split(' ')[0], 'stability': stability, 'trend': trend, 'returns': round(returns, 2), 'yearly_return': round(yearly_return, 2), 'volatility': round(volatility, 4), 'average_price': round(avg_price, 2), 'latest_price': round(latest_price, 2), 'anomaly_ratio': round(anomaly_ratio, 4), 'stars': stars})
+        results.append({'ticker': symbol, 'risk_level': risk.split(' ')[0], 'stability': stability, 'trend': trend, 'returns': float(round(returns, 2)), 'yearly_return': float(round(yearly_return, 2)), 'volatility': float(round(volatility, 4)), 'average_price': float(round(avg_price, 2)), 'latest_price': float(round(latest_price, 2)), 'anomaly_ratio': float(round(anomaly_ratio, 4)), 'stars': int(stars)})
     return results
 
 def run_pipeline(raw_df):

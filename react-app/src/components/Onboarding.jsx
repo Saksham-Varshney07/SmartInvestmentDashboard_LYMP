@@ -1,56 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Joyride, STATUS, EVENTS, ACTIONS } from 'react-joyride';
-
-const TOUR_STEPS = [
-  {
-    target: '#nav-dashboard',
-    title: 'Your Dashboard',
-    content: 'Get a bird\'s-eye view of your entire financial universe. See live metrics, total net worth, and quick insights in one place.',
-    disableBeacon: true,
-  },
-  {
-    target: '#nav-portfolio',
-    title: 'Track Your Portfolio',
-    content: 'Monitor your holdings in real-time, track your profit/loss, and maintain a detailed transaction history with live pricing.',
-    disableBeacon: true,
-  },
-  {
-    target: '#nav-riskanalysis',
-    title: 'AI Portfolio Doctor',
-    content: 'Discover your investor profile. Let our ML engine analyze overlapping correlation risk to suggest the perfect asset allocation.',
-    disableBeacon: true,
-  },
-  {
-    target: '#nav-sipplanner',
-    title: 'Advanced SIP Planner',
-    content: 'Plan systematic investments with inflation adjustments and see AI-driven Monte Carlo simulations for future wealth.',
-    disableBeacon: true,
-  },
-  {
-    target: '#nav-assetexplorer',
-    title: 'Asset Explorer',
-    content: 'A unified intelligence layer to search and analyze Stocks, Crypto, and Commodities, complete with AI risk scoring.',
-    disableBeacon: true,
-  },
-  {
-    target: '#nav-search',
-    title: 'Global Search',
-    content: 'Quickly find and analyze any stock or asset directly from anywhere in the app!',
-    disableBeacon: true,
-  }
-];
+import React, { useState, useEffect, useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
+import Shepherd from 'shepherd.js';
+import 'shepherd.js/dist/css/shepherd.css';
 
 export default function Onboarding() {
+  const { currentUser } = useContext(AuthContext);
   const [showWelcome, setShowWelcome] = useState(false);
-  const [runTour, setRunTour] = useState(false);
-  
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
-    const hasSeenOnboarding = localStorage.getItem('hasSeenOnboarding_v2');
-    if (!hasSeenOnboarding) {
-      setShowWelcome(true);
-    }
+    // Trigger onboarding automatically on page load/refresh if user is logged in
+    if (!currentUser) return;
+    
+    // Always show it on hard refresh as requested
+    setShowWelcome(true);
+    
+    // Listen for manual trigger from the Guide button in the top nav
+    const triggerHandler = () => setShowWelcome(true);
+    window.addEventListener('trigger-onboarding', triggerHandler);
     
     const observer = new MutationObserver(() => {
       setIsDarkMode(document.documentElement.classList.contains('dark'));
@@ -58,29 +25,99 @@ export default function Onboarding() {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     setIsDarkMode(document.documentElement.classList.contains('dark'));
     
-    return () => observer.disconnect();
-  }, []);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('trigger-onboarding', triggerHandler);
+    };
+  }, [currentUser]);
 
   const handleStartTour = () => {
     setShowWelcome(false);
+    
     setTimeout(() => {
-      setRunTour(true);
+      const tour = new Shepherd.Tour({
+        useModalOverlay: true,
+        defaultStepOptions: {
+          classes: isDarkMode ? 'shepherd-dark' : 'shepherd-light',
+          scrollTo: true,
+          cancelIcon: {
+            enabled: true
+          }
+        }
+      });
+      
+      const btnBack = {
+        text: 'Back',
+        action: tour.back,
+        classes: 'btn-secondary'
+      };
+      
+      const btnNext = {
+        text: 'Next',
+        action: tour.next,
+        classes: 'btn-primary ml-2'
+      };
+      
+      const btnFinish = {
+        text: 'Done',
+        action: tour.complete,
+        classes: 'btn-primary ml-2'
+      };
+
+      tour.addStep({
+        id: 'dashboard',
+        title: 'Your Dashboard',
+        text: 'Get a bird\'s-eye view of your entire financial universe. See live metrics, total net worth, and quick insights in one place.',
+        attachTo: { element: '#nav-dashboard', on: 'bottom' },
+        buttons: [btnNext]
+      });
+
+      tour.addStep({
+        id: 'portfolio',
+        title: 'Track Your Portfolio',
+        text: 'Monitor your holdings in real-time, track your profit/loss, and maintain a detailed transaction history with live pricing.',
+        attachTo: { element: '#nav-portfolio', on: 'bottom' },
+        buttons: [btnBack, btnNext]
+      });
+
+      tour.addStep({
+        id: 'riskanalysis',
+        title: 'AI Portfolio Doctor',
+        text: 'Discover your investor profile. Let our ML engine analyze overlapping correlation risk to suggest the perfect asset allocation.',
+        attachTo: { element: '#nav-riskanalysis', on: 'bottom' },
+        buttons: [btnBack, btnNext]
+      });
+
+      tour.addStep({
+        id: 'sipplanner',
+        title: 'Advanced SIP Planner',
+        text: 'Plan systematic investments with inflation adjustments and see AI-driven Monte Carlo simulations for future wealth.',
+        attachTo: { element: '#nav-sipplanner', on: 'bottom' },
+        buttons: [btnBack, btnNext]
+      });
+
+      tour.addStep({
+        id: 'assetexplorer',
+        title: 'Asset Explorer',
+        text: 'A unified intelligence layer to search and analyze Stocks, Crypto, and Commodities, complete with AI risk scoring.',
+        attachTo: { element: '#nav-assetexplorer', on: 'bottom' },
+        buttons: [btnBack, btnNext]
+      });
+
+      tour.addStep({
+        id: 'search',
+        title: 'Global Search',
+        text: 'Quickly find and analyze any stock or asset directly from anywhere in the app!',
+        attachTo: { element: '#nav-search', on: 'bottom' },
+        buttons: [btnBack, btnFinish]
+      });
+
+      tour.start();
     }, 300);
   };
 
   const handleSkipWelcome = () => {
     setShowWelcome(false);
-    localStorage.setItem('hasSeenOnboarding_v2', 'true');
-  };
-
-  const handleJoyrideCallback = (data) => {
-    const { status } = data;
-    const finishedStatuses = [STATUS.FINISHED, STATUS.SKIPPED];
-    
-    if (finishedStatuses.includes(status)) {
-      setRunTour(false);
-      localStorage.setItem('hasSeenOnboarding_v2', 'true');
-    }
   };
 
   return (
@@ -120,49 +157,6 @@ export default function Onboarding() {
           </div>
         </div>
       )}
-
-      <Joyride
-        steps={TOUR_STEPS}
-        run={runTour}
-        continuous={true}
-        disableBeacon={true}
-        showProgress={true}
-        showSkipButton={true}
-        callback={handleJoyrideCallback}
-        disableOverlayClose={true}
-        spotlightPadding={4}
-        styles={{
-          options: {
-            arrowColor: isDarkMode ? '#1e293b' : '#ffffff',
-            backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
-            overlayColor: 'rgba(15, 23, 42, 0.75)',
-            primaryColor: '#2563eb',
-            textColor: isDarkMode ? '#f8fafc' : '#0f172a',
-            zIndex: 1000,
-          },
-          tooltipContainer: {
-            textAlign: 'left'
-          },
-          buttonNext: {
-            backgroundColor: '#2563eb',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            padding: '10px 18px',
-          },
-          buttonBack: {
-            color: isDarkMode ? '#cbd5e1' : '#64748b',
-            marginRight: '10px',
-            fontSize: '14px',
-            fontWeight: '600'
-          },
-          buttonSkip: {
-            color: isDarkMode ? '#94a3b8' : '#94a3b8',
-            fontSize: '14px',
-            fontWeight: '500'
-          }
-        }}
-      />
     </>
   );
 }
