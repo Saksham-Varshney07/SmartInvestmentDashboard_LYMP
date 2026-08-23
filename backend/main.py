@@ -79,12 +79,12 @@ def run_single_analysis(symbol: str, db: Session=Depends(get_db)):
         final_output, full_processed_df = run_pipeline(raw_df)
         market_entries = []
         for _, row in full_processed_df.iterrows():
-            market_entry = models.MarketData(symbol=row['Symbol'], date=row['Date'], open=row['Open'], high=row['High'], low=row['Low'], close=row['Close'], volume=row['Volume'])
+            market_entry = models.AssetPrice(ticker=str(row['Symbol']), date=row['Date'], open=float(row['Open']), high=float(row['High']), low=float(row['Low']), close=float(row['Close']), volume=int(row['Volume']))
             db.merge(market_entry)
             market_entries.append(market_entry)
         analysis_data = None
         for item in final_output:
-            analysis_entry = models.AssetAnalysis(**item)
+            analysis_entry = models.RiskScore(**item)
             db.merge(analysis_entry)
             analysis_data = item
         db.commit()
@@ -115,10 +115,10 @@ def execute_pipeline(db: Session=Depends(get_db)):
             raise HTTPException(status_code=500, detail='Data scraping failed.')
         final_output, full_processed_df = run_pipeline(raw_df)
         for _, row in full_processed_df.iterrows():
-            market_entry = models.MarketData(symbol=row['Symbol'], date=row['Date'], open=row['Open'], high=row['High'], low=row['Low'], close=row['Close'], volume=row['Volume'])
+            market_entry = models.AssetPrice(ticker=str(row['Symbol']), date=row['Date'], open=float(row['Open']), high=float(row['High']), low=float(row['Low']), close=float(row['Close']), volume=int(row['Volume']))
             db.merge(market_entry)
         for item in final_output:
-            analysis_entry = models.AssetAnalysis(**item)
+            analysis_entry = models.RiskScore(**item)
             db.merge(analysis_entry)
         db.commit()
         return {'status': 'success', 'message': f'Pipeline executed successfully for {len(final_output)} assets.'}
@@ -344,13 +344,13 @@ def get_portfolio(user_id: int, db: Session=Depends(get_db)):
 
 @app.get('/api/assets')
 def get_assets(db: Session=Depends(get_db)):
-    assets = db.query(models.AssetAnalysis).all()
+    assets = db.query(models.RiskScore).all()
     return assets
 
 @app.get('/api/market/{symbol}')
 def get_market_history(symbol: str, db: Session=Depends(get_db)):
     symbol = symbol.upper()
-    history = db.query(models.MarketData).filter(models.MarketData.symbol == symbol).order_by(models.MarketData.date.desc()).all()
+    history = db.query(models.AssetPrice).filter(models.AssetPrice.ticker == symbol).order_by(models.AssetPrice.date.desc()).all()
     if not history:
         return {'error': 'No market history found for this symbol.'}
     return {'history': history}

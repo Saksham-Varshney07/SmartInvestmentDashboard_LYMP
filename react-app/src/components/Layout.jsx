@@ -249,6 +249,13 @@ export default function Layout({ children }) {
             </div>
             <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700">
                <button 
+                onClick={() => window.dispatchEvent(new Event('trigger-onboarding'))} 
+                className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                title="Guide"
+               >
+                 <span className="material-symbols-outlined text-sm">menu_book</span>
+               </button>
+               <button 
                 onClick={() => setIsDarkMode(!isDarkMode)} 
                 className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 title="Toggle Theme"

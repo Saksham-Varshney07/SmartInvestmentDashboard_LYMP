@@ -28,3 +28,82 @@ body {
   font-family: 'Inter', sans-serif;
   @apply bg-slate-50 dark:bg-slate-950 transition-colors duration-300;
 }
+
+/* Shepherd.js Theme Overrides */
+.shepherd-has-title .shepherd-content {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.shepherd-dark .shepherd-content {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+}
+
+.shepherd-header {
+  background: #f8fafc !important;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.shepherd-dark .shepherd-header {
+  background: #0f172a !important;
+  border-bottom-color: #334155 !important;
+}
+
+.shepherd-title {
+  font-weight: 700 !important;
+  font-size: 1.125rem !important;
+  color: #0f172a !important;
+}
+
+.shepherd-dark .shepherd-title {
+  color: #f8fafc !important;
+}
+
+.shepherd-text {
+  padding: 1.5rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #475569 !important;
+}
+
+.shepherd-dark .shepherd-text {
+  color: #cbd5e1 !important;
+}
+
+.shepherd-footer {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+}
+
+/* Button Overrides */
+.shepherd-button.btn-primary {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-radius: 0.5rem !important;
+  padding: 0.5rem 1rem !important;
+  border: none !important;
+}
+.shepherd-button.btn-primary:hover {
+  background-color: #1d4ed8 !important;
+}
+
+.shepherd-button.btn-secondary {
+  background-color: transparent !important;
+  color: #64748b !important;
+  font-weight: 600 !important;
+  border: none !important;
+}
+.shepherd-dark .shepherd-button.btn-secondary {
+  color: #cbd5e1 !important;
+}
+.shepherd-button.btn-secondary:hover {
+  color: #334155 !important;
+}
+.shepherd-dark .shepherd-button.btn-secondary:hover {
+  color: #ffffff !important;
+}

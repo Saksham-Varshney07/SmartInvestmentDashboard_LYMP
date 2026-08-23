@@ -14,7 +14,9 @@
     "react-dom": "^18.3.1",
     "react-joyride": "^3.2.0",
     "react-router-dom": "^6.27.0",
-    "recharts": "^3.8.1"
+    "react-shepherd": "^7.0.5",
+    "recharts": "^3.8.1",
+    "shepherd.js": "^15.2.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
