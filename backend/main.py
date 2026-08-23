@@ -85,19 +85,7 @@ def run_single_analysis(symbol: str, db: Session=Depends(get_db)):
             market_entries.append(market_entry)
         analysis_data = None
         for item in final_output:
-            analysis_entry = models.RiskScore(
-                ticker=item['asset'],
-                risk_level=item['risk'],
-                stability=item['stability'],
-                trend=item['trend'],
-                returns=float(item['returns']),
-                yearly_return=float(item['yearly_return']),
-                volatility=float(item['volatility']),
-                average_price=float(item['average_price']),
-                latest_price=float(item['latest_price']),
-                anomaly_ratio=float(item['anomaly_ratio']),
-                stars=int(item['stars'])
-            )
+            analysis_entry = models.RiskScore(**item)
             db.merge(analysis_entry)
             analysis_data = item
         db.commit()
@@ -131,19 +119,7 @@ def execute_pipeline(db: Session=Depends(get_db)):
             market_entry = models.AssetPrice(ticker=str(row['Symbol']), date=row['Date'], open=float(row['Open']), high=float(row['High']), low=float(row['Low']), close=float(row['Close']), volume=int(row['Volume']))
             db.merge(market_entry)
         for item in final_output:
-            analysis_entry = models.RiskScore(
-                ticker=item['asset'],
-                risk_level=item['risk'],
-                stability=item['stability'],
-                trend=item['trend'],
-                returns=float(item['returns']),
-                yearly_return=float(item['yearly_return']),
-                volatility=float(item['volatility']),
-                average_price=float(item['average_price']),
-                latest_price=float(item['latest_price']),
-                anomaly_ratio=float(item['anomaly_ratio']),
-                stars=int(item['stars'])
-            )
+            analysis_entry = models.RiskScore(**item)
             db.merge(analysis_entry)
         db.commit()
         return {'status': 'success', 'message': f'Pipeline executed successfully for {len(final_output)} assets.'}
