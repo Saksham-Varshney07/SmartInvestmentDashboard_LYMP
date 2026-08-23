@@ -258,22 +258,22 @@ export default function RiskAnalysis() {
              <button onClick={() => setStep(2)} className="text-sm text-slate-500 flex items-center mb-6 hover:text-slate-800 transition-colors"><span className="material-symbols-outlined text-[16px] mr-1">arrow_back</span> Edit Portfolio inputs</button>
              
              {/* Dynamic Alerts Module */}
-             <div className="mb-10 p-6 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl text-white shadow-xl relative overflow-hidden">
-                <span className="material-symbols-outlined absolute -right-4 -top-4 text-[100px] text-slate-700 opacity-20">warning</span>
+             <div className="mb-10 p-6 bg-white dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-900 dark:text-white shadow-xl relative overflow-hidden transition-colors">
+                <span className="material-symbols-outlined absolute -right-4 -top-4 text-[100px] text-slate-100 dark:text-slate-700 opacity-80 dark:opacity-20">warning</span>
                 <div className="relative z-10">
                    <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
                      <span className="material-symbols-outlined text-yellow-500 text-3xl">model_training</span>
                      AI Diagnostic Report
                    </h2>
-                   <p className="text-slate-400 mb-6 border-b border-slate-700 pb-4">Analyzed {stocks.length} assets mapped against your {riskProfile} profile.</p>
+                   <p className="text-slate-500 dark:text-slate-400 mb-6 border-b border-slate-200 dark:border-slate-700 pb-4">Analyzed {stocks.length} assets mapped against your {riskProfile} profile.</p>
                    
                    <div className="space-y-4">
                      {analysisResult.ai_warnings.map((warning, i) => (
-                       <div key={i} className={`flex items-start gap-4 p-4 rounded-xl border ${analysisResult.has_high_correlation ? 'bg-red-500/10 border-red-500/30' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
-                         <span className={`material-symbols-outlined ${analysisResult.has_high_correlation ? 'text-red-400' : 'text-emerald-400'}`}>
+                       <div key={i} className={`flex items-start gap-4 p-4 rounded-xl border ${analysisResult.has_high_correlation ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30' : 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30'}`}>
+                         <span className={`material-symbols-outlined ${analysisResult.has_high_correlation ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                             {analysisResult.has_high_correlation ? 'warning' : 'verified_user'}
                          </span>
-                         <p className={`${analysisResult.has_high_correlation ? 'text-red-200' : 'text-emerald-200'} font-medium text-sm leading-relaxed`}>{warning}</p>
+                         <p className={`${analysisResult.has_high_correlation ? 'text-red-700 dark:text-red-200' : 'text-emerald-700 dark:text-emerald-200'} font-medium text-sm leading-relaxed`}>{warning}</p>
                        </div>
                      ))}
                    </div>

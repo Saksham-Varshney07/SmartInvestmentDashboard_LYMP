@@ -55,10 +55,10 @@ export default function Dashboard() {
     });
 
     return [
-      { label: 'Stocks', pct: stocks, color: '#2563eb' },
-      { label: 'Crypto', pct: crypto, color: '#059669' },
-      { label: 'Gold & Silver', pct: gold, color: '#d97706' },
-      { label: 'Cash', pct: 0, color: '#64748b' }
+      { label: 'Stocks', pct: stocks, colorClass: 'text-blue-600 dark:text-blue-400' },
+      { label: 'Crypto', pct: crypto, colorClass: 'text-emerald-600 dark:text-emerald-400' },
+      { label: 'Gold & Silver', pct: gold, colorClass: 'text-amber-600 dark:text-amber-400' },
+      { label: 'Cash', pct: 0, colorClass: 'text-slate-500 dark:text-slate-400' }
     ];
   }, [portfolio.assets]);
 
@@ -190,8 +190,8 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-4 flex-grow">
             {groupedAllocations.map((group, i) => (
               <div key={i} className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-xl p-5 flex flex-col justify-center items-center text-center hover:shadow-md transition-shadow">
-                <span className="text-slate-500 dark:text-slate-400 font-medium text-sm tracking-wide uppercase mb-2">{group.label}</span>
-                <span className="text-3xl font-bold" style={{ color: group.color }}>
+                <span className="text-slate-500 dark:text-white font-medium text-sm tracking-wide uppercase mb-2">{group.label}</span>
+                <span className={`text-3xl font-bold ${group.colorClass}`}>
                   {group.pct.toFixed(1)}%
                 </span>
               </div>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 export default function SipPlanner() {
+  const navigate = useNavigate();
   const [monthlyInvestment, setMonthlyInvestment] = useState(25000);
   const [returnRate, setReturnRate] = useState(12);
   const [timePeriod, setTimePeriod] = useState(10);
@@ -62,9 +63,9 @@ export default function SipPlanner() {
   };
 
   const getAIFeasibility = () => {
-    if (returnRate > 15) return { level: 'High Risk / Low Probability', color: 'text-amber-600', border: 'border-amber-200', bg: 'bg-amber-50', icon: 'warning', msg: `AI considers a sustained ${returnRate}% return over ${timePeriod} years to be statistically improbable without exposing the portfolio to severe drawdown risk. Consider lowering expectations.` };
-    if (returnRate > 12) return { level: 'Moderate Probability', color: 'text-blue-600', border: 'border-blue-200', bg: 'bg-blue-50', icon: 'analytics', msg: `Historical data shows ~12% CAGR. You will need a slightly aggressive mid/small-cap tilt to achieve ${returnRate}%. Expect moderate volatility.` };
-    return { level: 'High Probability', color: 'text-emerald-600', border: 'border-emerald-200', bg: 'bg-emerald-50', icon: 'verified_user', msg: `AI simulation shows a 94% historical probability of achieving ${returnRate}% returns safely using standard index investing.` };
+    if (returnRate > 15) return { level: 'High Risk / Low Probability', color: 'text-amber-600 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-500/30', bg: 'bg-amber-50 dark:bg-slate-800/50', icon: 'warning', msg: `AI considers a sustained ${returnRate}% return over ${timePeriod} years to be statistically improbable without exposing the portfolio to severe drawdown risk. Consider lowering expectations.` };
+    if (returnRate > 12) return { level: 'Moderate Probability', color: 'text-blue-600 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-500/30', bg: 'bg-blue-50 dark:bg-slate-800/50', icon: 'analytics', msg: `Historical data shows ~12% CAGR. You will need a slightly aggressive mid/small-cap tilt to achieve ${returnRate}%. Expect moderate volatility.` };
+    return { level: 'High Probability', color: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-500/30', bg: 'bg-emerald-50 dark:bg-slate-800/50', icon: 'verified_user', msg: `AI simulation shows a 94% historical probability of achieving ${returnRate}% returns safely using standard index investing.` };
   }
 
   const { investedAmount, estReturns, totalValue } = calculateSIP();
@@ -185,39 +186,39 @@ export default function SipPlanner() {
                   </div>
 
                   {/* Inflation Adjustment Module */}
-                  <div className="mt-8 p-5 bg-red-50 border border-red-100 rounded-xl relative overflow-hidden">
+                  <div className="mt-8 p-5 bg-red-50 dark:bg-slate-800/50 border border-red-100 dark:border-red-500/30 rounded-xl relative overflow-hidden">
                      <div className="flex items-center justify-between mb-4 relative z-10">
-                        <div className="flex items-center gap-2 text-slate-800 font-semibold">
-                           <span className="material-symbols-outlined text-red-500">trending_down</span>
+                        <div className="flex items-center gap-2 text-slate-800 dark:text-white font-semibold">
+                           <span className="material-symbols-outlined text-red-500 dark:text-red-400">trending_down</span>
                            Inflation Adjustment
                         </div>
                         <div className="flex gap-3 text-sm">
                            <div className="flex items-center gap-2">
-                             <label className="text-slate-500 font-medium whitespace-nowrap">Target Year:</label>
+                             <label className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">Target Year:</label>
                              <input 
                                type="number" min="2026" max="2040" 
                                value={targetYear} 
                                onChange={(e) => setTargetYear(Math.min(2040, Math.max(2026, Number(e.target.value))))}
-                               className="w-20 px-2 py-1 rounded bg-white border border-red-200 text-red-700 font-bold focus:outline-none"
+                               className="w-20 px-2 py-1 rounded bg-white dark:bg-slate-900 border border-red-200 dark:border-slate-700 text-red-700 dark:text-white font-bold focus:outline-none"
                              />
                            </div>
                            <div className="flex items-center gap-2">
-                             <label className="text-slate-500 font-medium whitespace-nowrap">Inflation rate:</label>
+                             <label className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">Inflation rate:</label>
                              <input 
                                type="number" min="1" max="15" step="0.5"
                                value={inflationRate} 
                                onChange={(e) => setInflationRate(Number(e.target.value))}
-                               className="w-16 px-2 py-1 rounded bg-white border border-red-200 text-red-700 font-bold focus:outline-none"
+                               className="w-16 px-2 py-1 rounded bg-white dark:bg-slate-900 border border-red-200 dark:border-slate-700 text-red-700 dark:text-white font-bold focus:outline-none"
                              />
-                             <span>%</span>
+                             <span className="dark:text-slate-400">%</span>
                            </div>
                         </div>
                      </div>
-                     <div className="flex justify-between items-center text-lg pt-4 border-t border-red-200/50 relative z-10">
-                        <span className="text-slate-700 font-medium">Real adjusted value in {targetYear}</span>
-                        <span className="font-bold text-red-700">{formatCurrency(Math.round(inflationAdjustedValue))}</span>
+                     <div className="flex justify-between items-center text-lg pt-4 border-t border-red-200/50 dark:border-slate-700/50 relative z-10">
+                        <span className="text-slate-700 dark:text-slate-300 font-medium">Real adjusted value in {targetYear}</span>
+                        <span className="font-bold text-red-700 dark:text-red-400">{formatCurrency(Math.round(inflationAdjustedValue))}</span>
                      </div>
-                     <p className="text-[11px] text-slate-500 mt-3 relative z-10">
+                     <p className="text-[11px] text-slate-500 dark:text-slate-500 mt-3 relative z-10">
                         Disclaimer: The actual purchasing power varies constantly. These inflation-adjusted values are simulations relying on historical constant inflation averages and are exclusively for theoretical planning.
                      </p>
                   </div>
@@ -295,7 +296,10 @@ export default function SipPlanner() {
                    </div>
                 </div>
 
-               <button className="mt-8 bg-[#059669] hover:bg-[#047857] transition-colors text-white font-bold py-4 px-12 rounded-lg w-full max-w-[320px]">
+               <button 
+                  onClick={() => navigate('/portfolio', { state: { openAddTransaction: true } })}
+                  className="mt-8 bg-[#059669] hover:bg-[#047857] transition-colors text-white dark:text-white font-bold py-4 px-12 rounded-lg w-full max-w-[320px] shadow-md shadow-emerald-900/20 active:scale-[0.98]"
+               >
                   INVEST NOW
                </button>
             </div>
