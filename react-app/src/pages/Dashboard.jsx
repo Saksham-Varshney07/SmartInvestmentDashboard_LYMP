@@ -65,6 +65,55 @@ export default function Dashboard() {
   // Colors for charts
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#F15B5B', '#4D4D4E'];
 
+  // Generate REAL historical curve based on actual user transaction dates
+  const performanceData = React.useMemo(() => {
+    if (!portfolio.assets || portfolio.assets.length === 0) return [];
+    
+    // Extract all transactions from all assets
+    let allTransactions = [];
+    portfolio.assets.forEach(asset => {
+       if (asset.history) {
+           asset.history.forEach(tx => {
+               allTransactions.push({
+                   date: new Date(tx.date),
+                   amount: tx.type === 'BUY' ? (tx.shares * tx.price) : -(tx.shares * tx.price)
+               });
+           });
+       }
+    });
+    
+    // Sort transactions by date ascending
+    allTransactions.sort((a, b) => a.date - b.date);
+    
+    // Build cumulative timeline
+    let cumulative = 0;
+    const timeline = [];
+    allTransactions.forEach(tx => {
+        cumulative += tx.amount;
+        const monthDay = tx.date.toLocaleString('default', { month: 'short', day: 'numeric' });
+        // Avoid duplicate dates by updating the last one if it's the same day
+        if (timeline.length > 0 && timeline[timeline.length - 1].dateStr === monthDay) {
+            timeline[timeline.length - 1].value = cumulative;
+        } else {
+            timeline.push({ dateStr: monthDay, value: Math.max(0, Math.round(cumulative)) });
+        }
+    });
+    
+    // Add today's live value at the end if it's different from the last transaction
+    const today = new Date();
+    const todayStr = 'Today';
+    const currentLiveValue = portfolio.summary.portfolio_value || cumulative;
+    
+    // If the portfolio is very new (only 1 data point), add a fake previous point to draw a line
+    if (timeline.length === 1) {
+        timeline.unshift({ dateStr: 'Start', value: 0 });
+    }
+    
+    timeline.push({ dateStr: todayStr, value: Math.round(currentLiveValue) });
+    
+    return timeline;
+  }, [portfolio.assets, portfolio.summary.portfolio_value]);
+
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8 mb-20 lg:mb-0">
       
@@ -155,22 +204,14 @@ export default function Dashboard() {
           <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Portfolio Performance</h3>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={[
-                { month: 'Jan', value: 100 },
-                { month: 'Feb', value: 120 },
-                { month: 'Mar', value: 115 },
-                { month: 'Apr', value: 140 },
-                { month: 'May', value: 135 },
-                { month: 'Jun', value: 160 },
-                { month: 'Jul', value: 180 }
-              ]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={performanceData} margin={{ top: 10, right: 10, left: 20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
                     <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                <XAxis dataKey="dateStr" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
                 <Tooltip 
                   contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
