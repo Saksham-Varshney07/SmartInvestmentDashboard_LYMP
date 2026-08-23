@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import Shepherd from 'shepherd.js';
 import { AuthContext } from '../context/AuthContext';
 
 export default function Portfolio() {
   const { currentUser } = useContext(AuthContext);
+  const location = useLocation();
   
   const [portfolio, setPortfolio] = useState({
     summary: { total_investment: 0, portfolio_value: 0, total_profit: 0, total_profit_pct: 0 },
@@ -19,6 +22,7 @@ export default function Portfolio() {
   
   const txSearchRef = useRef(null);
   const txSearchTimeoutRef = useRef(null);
+  const tourRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -29,6 +33,41 @@ export default function Portfolio() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (location.state?.openAddTransaction) {
+      // Clean up the state so it doesn't reopen on refresh
+      window.history.replaceState({}, document.title);
+      
+      const isDarkMode = document.documentElement.classList.contains('dark');
+      const tour = new Shepherd.Tour({
+        useModalOverlay: true,
+        defaultStepOptions: {
+          classes: isDarkMode ? 'shepherd-dark' : 'shepherd-light',
+          scrollTo: true,
+          cancelIcon: { enabled: true }
+        }
+      });
+      tourRef.current = tour;
+
+      tour.addStep({
+        id: 'invest-pointer',
+        title: 'Start Investing',
+        text: 'Click here to record a new transaction and add assets to your portfolio.',
+        attachTo: { element: '#btn-add-transaction', on: 'bottom' },
+        buttons: [
+          {
+            text: 'Got it',
+            action: tour.cancel,
+            classes: 'btn-primary'
+          }
+        ]
+      });
+
+      // Delay slightly to let the page render completely
+      setTimeout(() => tour.start(), 300);
+    }
+  }, [location.state]);
 
   const fetchPortfolio = async () => {
     if (!currentUser) return;
@@ -142,7 +181,11 @@ export default function Portfolio() {
           <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your holdings and track performance.</p>
         </div>
         <button 
-          onClick={() => setShowTxModal(true)} 
+          id="btn-add-transaction"
+          onClick={() => {
+            if (tourRef.current) tourRef.current.cancel();
+            setShowTxModal(true);
+          }} 
           className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-semibold shadow hover:bg-blue-700 transition-colors flex items-center gap-2"
         >
           <span className="material-symbols-outlined text-sm">add</span> Add Transaction
