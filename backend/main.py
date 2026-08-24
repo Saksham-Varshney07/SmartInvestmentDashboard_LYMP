@@ -34,6 +34,7 @@ class LoginRequest(BaseModel):
     full_name: Optional[str] = None
     risk_profile: Optional[str] = None
     investment_horizon: Optional[str] = None
+    is_signup: Optional[bool] = False
 
 app = FastAPI(title='Risk Analysis System API')
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
@@ -44,6 +45,27 @@ def on_startup():
     try:
         if engine:
             Base.metadata.create_all(bind=engine)
+            # Ensure the stored procedure exists
+            with engine.connect() as conn:
+                conn.execute(text("""
+                CREATE OR REPLACE PROCEDURE purchase_portfolio_asset(
+                    p_portfolio_id INT,
+                    p_ticker VARCHAR,
+                    p_shares FLOAT,
+                    p_price FLOAT
+                )
+                LANGUAGE plpgsql
+                AS $$
+                BEGIN
+                    INSERT INTO portfolio_assets (portfolio_id, ticker, shares, purchase_price, purchase_date)
+                    VALUES (p_portfolio_id, p_ticker, p_shares, p_price, NOW());
+                    IF p_shares <= 0 THEN
+                        RAISE EXCEPTION 'Shares must be greater than zero. Rolling back transaction.';
+                    END IF;
+                END;
+                $$;
+                """))
+                conn.commit()
     except Exception as e:
         print('Could not create tables immediately warning:', e)
 
@@ -130,9 +152,11 @@ def execute_pipeline(db: Session=Depends(get_db)):
 
 @app.post('/api/login')
 def login(req: LoginRequest, db: Session=Depends(get_db)):
-    # 1. Handle User
     user = db.query(models.User).filter(models.User.username == req.username).first()
     if not user:
+        if not req.is_signup:
+            return {'status': 'error', 'message': "Account not found. Please click 'Sign up' below to create a new account."}
+            
         user = models.User(
             username=req.username,
             full_name=req.full_name,
@@ -178,10 +202,17 @@ def login(req: LoginRequest, db: Session=Depends(get_db)):
 @app.post('/api/portfolio/transaction')
 def add_transaction(req: TransactionRequest, db: Session=Depends(get_db)):
     target_name = 'Real Portfolio' if req.portfolio_type == 'real' else 'Sandbox Portfolio'
-    portfolio = db.query(models.Portfolio).filter(models.Portfolio.user_id == req.user_id, models.Portfolio.portfolio_name == target_name).first()
-    if not portfolio:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
     
+    portfolios = db.query(models.Portfolio).filter(models.Portfolio.user_id == req.user_id).all()
+    if not portfolios:
+        # Auto-create the portfolio if the user has absolutely zero portfolios
+        portfolio = models.Portfolio(portfolio_name=target_name, user_id=req.user_id)
+        db.add(portfolio)
+        db.commit()
+        db.refresh(portfolio)
+    else:
+        # Use the requested portfolio name, or fallback to their first portfolio (e.g., custom named ones)
+        portfolio = next((p for p in portfolios if p.portfolio_name == target_name), portfolios[0])
     if req.transaction_type.upper() == 'BUY':
         # Use the stored procedure as requested
         db.execute(
@@ -376,184 +407,236 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
     three optimized allocation breakdowns based on real Inverse Volatility weighting.
     """
     try:
-        # 1. We mock correlation data using Sector Mapping logic typical for Indian bluechips.
-        sector_mapping = {
-            'RELIANCE.NS': 'Energy', 'ONGC.NS': 'Energy',
-            'TCS.NS': 'IT', 'INFY.NS': 'IT', 'WIPRO.NS': 'IT', 'HCLTECH.NS': 'IT',
-            'HDFCBANK.NS': 'Banking', 'ICICIBANK.NS': 'Banking', 'SBIN.NS': 'Banking', 'AXISBANK.NS': 'Banking',
-            'ITC.NS': 'FMCG', 'HINDUNILVR.NS': 'FMCG', 'TATASTEEL.NS': 'Metals', 'JSWSTEEL.NS': 'Metals'
-        }
+        import pandas as pd
+        import numpy as np
+        import scipy.optimize as sco
+        import yfinance as yf
         
-        # Determine concentration
-        sectors = []
-        for s in payload.stocks:
-            normalized = s.upper()
-            if not normalized.endswith('.NS'):
-                normalized += '.NS'
-            sectors.append(sector_mapping.get(normalized, 'Other'))
+        stocks_list = payload.stocks
+        if not stocks_list:
+            raise ValueError('No stocks provided.')
             
-        counter = collections.Counter(sectors)
+        # AI uniquely injects core baseline assets to guarantee a valid diversified MPT universe 
+        # even if the user only provides 1 or 2 highly correlated stocks.
+        core_assets = ["NIFTYBEES.NS", "GOLDBEES.NS", "LIQUIDBEES.NS"]
+        stocks_list = list(set(stocks_list + core_assets))
+            
+        raw_tickers = [s.upper().strip() for s in stocks_list]
+            
+        # 1. Fetch Real Historical Data (Last 1 Year)
+        # Try fetching exactly what was passed first
+        data = yf.download(raw_tickers, period="1y", progress=False)['Close']
+        if isinstance(data, pd.Series):
+            data = data.to_frame(name=raw_tickers[0])
+            
+        # Check for failed tickers
+        valid_tickers = [c for c in data.columns if not data[c].isna().all()]
+        failed_tickers = [t for t in raw_tickers if t not in valid_tickers]
         
-        # Calculate Sector Breakdown
-        sector_breakdown = []
-        for sector, count in counter.items():
-            sector_breakdown.append({
-                "name": sector,
-                "percentage": round((count / len(sectors)) * 100)
-            })
-        sector_breakdown.sort(key=lambda x: x['percentage'], reverse=True)
+        # Retry failed tickers by appending .NS if they lack a suffix
+        retry_tickers = []
+        for t in failed_tickers:
+            if '.' not in t and '-' not in t and '=' not in t:
+                retry_tickers.append(t + '.NS')
+                
+        if retry_tickers:
+            retry_data = yf.download(retry_tickers, period="1y", progress=False)['Close']
+            if isinstance(retry_data, pd.Series):
+                retry_data = retry_data.to_frame(name=retry_tickers[0])
+            for c in retry_data.columns:
+                if not retry_data[c].isna().all():
+                    data[c] = retry_data[c]
+                    valid_tickers.append(c)
         
+        if len(valid_tickers) == 0:
+            raise ValueError("No valid data returned from Yahoo Finance for the provided stocks.")
+            
+        # Filter data to only valid columns
+        data = data[valid_tickers]
+        
+        # Crypto trades 24/7, stocks trade 5 days/week. 
+        # Forward fill stock prices on weekends before dropping NaNs to preserve the timeline.
+        data = data.ffill().dropna()
+        
+        returns = data.pct_change().dropna()
+        if returns.empty:
+            raise ValueError("Not enough historical data to compute returns.")
+            
+        user_tickers = [t for t in valid_tickers if t not in core_assets]
+        if not user_tickers:
+            user_tickers = valid_tickers # Fallback
+            
+        yf_tickers = user_tickers
+            
+        # 2. Real Correlation Matrix
+        corr_df = returns.corr()
+        
+        correlation_matrix = []
+        for s1 in yf_tickers:
+            row = {'name': s1, 'data': []}
+            for s2 in yf_tickers:
+                if s1 in corr_df.columns and s2 in corr_df.columns:
+                    val = corr_df.loc[s1, s2]
+                    val = 0 if pd.isna(val) else val
+                else:
+                    val = 1.0 if s1 == s2 else 0.0
+                row['data'].append({'x': s2, 'y': round(val, 2)})
+            correlation_matrix.append(row)
+            
+        # 3. Dynamic High-Correlation Warnings
         warnings_array = []
         high_correlation = False
         
-        for sector, count in counter.items():
-            if count >= 3 and sector != 'Other':
-                high_correlation = True
-                warnings_array.append(f"CONCENTRATION RISK: You have selected {count} stocks entirely in the {sector} sector. These assets are highly correlated; if {sector} faces a downturn, your entire portfolio falls simultaneously.")
-                
-        if len(payload.stocks) <= 2:
+        for i in range(len(user_tickers)):
+            for j in range(i+1, len(user_tickers)):
+                s1, s2 = user_tickers[i], user_tickers[j]
+                c_val = corr_df.loc[s1, s2]
+                if c_val > 0.45:
+                    high_correlation = True
+                    warnings_array.append(f"HIGH CORRELATION RISK: Mathematical correlation of {round(c_val*100)}% detected between {s1} and {s2} on daily returns. These assets are moving together.")
+        
+        if len(user_tickers) <= 2:
             warnings_array.append("DIVERSIFICATION WARNING: Only choosing 1-2 stocks concentrates capital too heavily. Consider blending in stable mutual funds.")
             
-        if not warnings_array:
-            warnings_array.append("Your chosen stock universe shows excellent sector diversification and low correlation overlap.")
-            
-        # Generate heuristic correlation matrix for heatmap
-        correlation_matrix = []
-        for i, s1 in enumerate(payload.stocks):
-            row = {'name': s1, 'data': []}
-            sec1 = sector_mapping.get(s1.upper().replace('.NS', '') + '.NS', 'Other')
-            for j, s2 in enumerate(payload.stocks):
-                sec2 = sector_mapping.get(s2.upper().replace('.NS', '') + '.NS', 'Other')
-                if i == j:
-                    corr = 1.0
-                elif sec1 == sec2 and sec1 != 'Other':
-                    corr = 0.85
-                else:
-                    corr = 0.25
-                row['data'].append({'x': s2, 'y': corr})
-            correlation_matrix.append(row)
-            
-        # 2. Extract Real ML Metrics from Database
-        user_stocks_data = []
-        for s in payload.stocks:
-            normalized = s.upper()
-            if not normalized.endswith('.NS') and '-' not in normalized and '=' not in normalized:
-                normalized += '.NS'
-            
-            # Fetch from DB to instantly get Volatility and Yearly Return
-            asset_record = db.query(models.RiskScore).filter(models.RiskScore.ticker == normalized).first()
-            if asset_record:
-                user_stocks_data.append({
-                    'symbol': normalized,
-                    'volatility': asset_record.volatility,
-                    'yearly_return': asset_record.yearly_return
-                })
-            else:
-                # Fallback if not yet analyzed: assume average market vol and 8% return
-                user_stocks_data.append({
-                    'symbol': normalized,
-                    'volatility': 0.015,
-                    'yearly_return': 8.0
-                })
+        # 4. Sector Exposure Breakdown (100% Real via concurrent fetch)
+        import concurrent.futures
+        def fetch_sector(ticker):
+            try:
+                sec = yf.Ticker(ticker).info.get('sector')
+                return sec if sec else 'Other/Unknown'
+            except:
+                return 'Other/Unknown'
                 
-        # Calculate Inverse Volatility Weights purely for the User Selection slice
-        total_inv_vol = sum((1.0 / s['volatility']) for s in user_stocks_data) if user_stocks_data else 1
-        for s in user_stocks_data:
-            s['weight'] = (1.0 / s['volatility']) / total_inv_vol
+        counter = collections.Counter()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            fetched_sectors = list(executor.map(fetch_sector, yf_tickers))
             
-        avg_user_return = sum((s['yearly_return'] * s['weight']) for s in user_stocks_data) if user_stocks_data else 8.0
-
-        # Heuristic MPT Portfolio Allocator
-        b = payload.budget
+        for s in fetched_sectors:
+            counter[s] += 1
+            
+        sector_breakdown = []
+        for sector, count in counter.items():
+            pct = round((count / len(yf_tickers)) * 100)
+            sector_breakdown.append({
+                "name": sector,
+                "percentage": pct
+            })
+            if pct > 50 and sector != 'Other/Unknown':
+                warnings_array.append(f"SECTOR CONCENTRATION RISK: {pct}% of your portfolio is concentrated entirely in the '{sector}' sector. This is highly risky if the sector faces a macroeconomic downturn.")
+                
+        sector_breakdown.sort(key=lambda x: x['percentage'], reverse=True)
         
-        # Helper to divide a slice among user stocks
-        def generate_user_allocations(slice_budget, color_start="#2563eb"):
-            # If no stocks, provide generic
-            if not user_stocks_data:
-                 return [{"name": "User Selection", "ticker": "USER.SEL", "percentage": 100, "amount": slice_budget, "color": color_start}]
-                 
+        if not warnings_array:
+            warnings_array.append("Your chosen stock universe shows excellent diversification and low historical correlation overlap.")
+        
+        # 5. MPT Optimization for Allocations
+        mean_returns = returns.mean() * 252
+        cov_matrix = returns.cov() * 252
+        num_assets = len(valid_tickers)
+        
+        def get_allocs(weights, budget_slice):
             allocs = []
-            # some color variations
             colors = ["#dc2626", "#ea580c", "#d97706", "#ca8a04", "#65a30d", "#059669", "#0891b2", "#2563eb", "#4f46e5", "#7c3aed", "#c026d3", "#e11d48"]
-            for i, s in enumerate(user_stocks_data):
-                amt = slice_budget * s['weight']
-                allocs.append({
-                    "name": s['symbol'],
-                    "ticker": s['symbol'],
-                    "percentage": round(s['weight'] * 100, 1),
-                    "amount": round(amt, 2),
-                    "color": colors[i % len(colors)]
-                })
+            for i, ticker in enumerate(valid_tickers):
+                w = weights[i]
+                if w > 0.01:
+                    allocs.append({
+                        "name": ticker, "ticker": ticker,
+                        "percentage": round(w * 100, 1),
+                        "amount": round(budget_slice * w, 2),
+                        "color": colors[i % len(colors)]
+                    })
             return allocs
 
-        # Portfolio 1: The Defender
-        def_user_slice = b * 0.20
+        if num_assets > 1:
+            def port_perf(weights, mean_ret, cov):
+                ret = np.sum(mean_ret * weights)
+                std = np.sqrt(np.dot(weights.T, np.dot(cov, weights)))
+                return std, ret
+
+            def neg_sharpe(weights, mean_ret, cov, risk_free=0.07):
+                p_var, p_ret = port_perf(weights, mean_ret, cov)
+                return -(p_ret - risk_free) / p_var
+
+            def port_vol(weights, mean_ret, cov):
+                return port_perf(weights, mean_ret, cov)[0]
+
+            constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+            bounds = tuple((0.0, 1.0) for _ in range(num_assets))
+            init_guess = num_assets * [1. / num_assets,]
+            
+            # Global Minimum Variance (Defender)
+            opt_def = sco.minimize(port_vol, init_guess, args=(mean_returns, cov_matrix), method='SLSQP', bounds=bounds, constraints=constraints)
+            defender_w = opt_def['x']
+            def_ret = np.sum(mean_returns * defender_w)
+            
+            # Maximum Sharpe (Balanced)
+            opt_bal = sco.minimize(neg_sharpe, init_guess, args=(mean_returns, cov_matrix), method='SLSQP', bounds=bounds, constraints=constraints)
+            balanced_w = opt_bal['x']
+            bal_ret = np.sum(mean_returns * balanced_w)
+            
+            # Aggressive (Weighted heavily to top returners)
+            aggressor_w = np.zeros(num_assets)
+            top_idx = np.argsort(mean_returns.values)[-2:] if num_assets >= 2 else [0]
+            if len(top_idx) == 2:
+                aggressor_w[top_idx[1]] = 0.65
+                aggressor_w[top_idx[0]] = 0.35
+            else:
+                aggressor_w[0] = 1.0
+            agg_ret = np.sum(mean_returns * aggressor_w)
+        else:
+            defender_w = balanced_w = aggressor_w = np.array([1.0])
+            def_ret = bal_ret = agg_ret = mean_returns.values[0] if num_assets > 0 else 0
+            
+        b = payload.budget
         the_defender = {
             "name": "The Defender (Low Risk)",
-            "description": "80% Large Cap & Debt, 20% Growth",
-            "allocations": [
-                {"name": "Gov Bonds / FDs", "ticker": "GOV.BND", "percentage": 40, "amount": b * 0.40, "color": "#1e293b"},
-                {"name": "Bluechip / Large Cap", "ticker": "LARGE.CAP", "percentage": 40, "amount": b * 0.40, "color": "#475569"},
-            ] + generate_user_allocations(def_user_slice),
-            "projected_return_pa": round((0.4 * 6.5) + (0.4 * 10.0) + (0.2 * avg_user_return), 1)
+            "description": "MPT Global Minimum Variance",
+            "allocations": get_allocs(defender_w, b),
+            "projected_return_pa": round((def_ret*100), 1)
         }
         
-        # Portfolio 2: The Balanced
-        bal_user_slice = b * 0.40
         the_balanced = {
             "name": "The Balanced (AI Optimum)",
-            "description": "60% Equity mixes, 40% Stable backbone",
-            "allocations": [
-                {"name": "Index Funds (NIFTY 50)", "ticker": "NIFTY50.IDX", "percentage": 40, "amount": b * 0.40, "color": "#0284c7"},
-                {"name": "Gold / Liquid", "ticker": "GOLD.ETF", "percentage": 20, "amount": b * 0.20, "color": "#eab308"}
-            ] + generate_user_allocations(bal_user_slice),
-            "projected_return_pa": round((0.4 * 12.0) + (0.2 * 5.0) + (0.4 * avg_user_return), 1)
+            "description": "MPT Maximum Sharpe Ratio",
+            "allocations": get_allocs(balanced_w, b),
+            "projected_return_pa": round((bal_ret*100), 1)
         }
         
-        # Portfolio 3: The Aggressor
-        agg_user_slice = b * 0.60
         the_aggressor = {
             "name": "The Aggressor (High Risk)",
-            "description": "85% Aggressive Equity, 15% Support",
-            "allocations": [
-                {"name": "Small/Mid Cap Funds", "ticker": "SMALL.CAP", "percentage": 25, "amount": b * 0.25, "color": "#9333ea"},
-                {"name": "Cash Reserve", "ticker": "CASH", "percentage": 15, "amount": b * 0.15, "color": "#cbd5e1"}
-            ] + generate_user_allocations(agg_user_slice),
-            "projected_return_pa": round((0.25 * 18.0) + (0.15 * 4.0) + (0.60 * avg_user_return), 1)
+            "description": "Momentum & High-Yield Driven",
+            "allocations": get_allocs(aggressor_w, b),
+            "projected_return_pa": round((agg_ret*100), 1)
         }
         
-        # Drawdown Simulation Data (12 months heuristic)
-        simulation_data = {
-            "categories": [],
-            "user_portfolio": [],
-            "ai_balanced": []
-        }
+        # 6. Real Historical Backtesting
+        simulation_data = {"categories": [], "user_portfolio": [], "ai_balanced": []}
         
-        # Base values
-        user_val = 100000
-        ai_val = 100000
-        
-        import random
-        # 12 months ago to now
-        for i in range(12):
-            month_date = datetime.now() - timedelta(days=30*(11-i))
-            simulation_data["categories"].append(month_date.strftime("%b %Y"))
+        if num_assets > 0:
+            user_weights = np.array([1.0 / num_assets] * num_assets)
+            user_daily_ret = (returns * user_weights).sum(axis=1)
+            ai_daily_ret = (returns * balanced_w).sum(axis=1)
             
-            # Month 6-7 is our "Crash"
-            if i in [5, 6]:
-                # User portfolio drops heavily based on correlation
-                drop = random.uniform(0.15, 0.25) if high_correlation else random.uniform(0.10, 0.15)
-                user_val = user_val * (1 - drop)
-                # AI Balanced drops less due to bonds
-                ai_val = ai_val * (1 - random.uniform(0.04, 0.08))
-            else:
-                # Normal growth
-                user_val = user_val * (1 + random.uniform(0.01, 0.04))
-                ai_val = ai_val * (1 + random.uniform(0.01, 0.025))
+            # Blend AI stock slice with 40% NIFTY (est 0.04% daily) and 20% Gold (est 0.02% daily)
+            blended_ai_ret = (ai_daily_ret * 0.40) + 0.0004 * 0.40 + 0.0002 * 0.20
+            
+            user_cum = (1 + user_daily_ret).cumprod()
+            ai_cum = (1 + blended_ai_ret).cumprod()
+            
+            port_df = pd.DataFrame({'user': user_cum, 'ai': ai_cum})
+            monthly_data = port_df.iloc[::21, :] # roughly every 21 trading days (1 month)
+            
+            for date, row in monthly_data.iterrows():
+                simulation_data["categories"].append(date.strftime("%b %y"))
+                simulation_data["user_portfolio"].append(round(100000 * row['user']))
+                simulation_data["ai_balanced"].append(round(100000 * row['ai']))
                 
-            simulation_data["user_portfolio"].append(round(user_val))
-            simulation_data["ai_balanced"].append(round(ai_val))
-
+        if len(simulation_data["categories"]) < 2:
+            simulation_data["categories"] = ["Jan", "Feb", "Mar", "Apr"]
+            simulation_data["user_portfolio"] = [100000]*4
+            simulation_data["ai_balanced"] = [100000]*4
+            
         return {
             'status': 'success',
             'analysis': {

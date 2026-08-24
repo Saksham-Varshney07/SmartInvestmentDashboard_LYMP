@@ -78,12 +78,18 @@ export default function RiskAnalysis() {
         },
         body: JSON.stringify(payload)
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to analyze portfolio. Some stocks may be invalid or have conflicting trading calendars.");
+      }
+      
       const data = await response.json();
       setAnalysisResult(data.analysis);
       setStep(3);
     } catch (err) {
       console.error(err);
-      alert("Failed to analyze portfolio. Ensure backend is running.");
+      alert(err.message || "Failed to analyze portfolio. Ensure backend is running.");
     } finally {
       setLoading(false);
     }
@@ -393,6 +399,7 @@ export default function RiskAnalysis() {
                  </p>
                  <div className="h-[300px]">
                    <ReactApexChart 
+                     key={`heatmap-${analysisResult.correlation_matrix.map(r => r.name).join('-')}`}
                      options={{
                        chart: { type: 'heatmap', toolbar: { show: false } },
                        dataLabels: { enabled: true },
@@ -411,7 +418,10 @@ export default function RiskAnalysis() {
                            }
                          }
                        },
-                       xaxis: { type: 'category' }
+                       xaxis: { 
+                          type: 'category',
+                          categories: analysisResult.correlation_matrix.map(r => r.name)
+                        }
                      }}
                      series={analysisResult.correlation_matrix}
                      type="heatmap"
