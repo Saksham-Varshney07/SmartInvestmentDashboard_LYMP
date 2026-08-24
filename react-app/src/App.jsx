@@ -10,11 +10,13 @@ import Account from './pages/Account';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
 import Onboarding from './components/Onboarding';
+import ScrollToTop from './components/ScrollToTop';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
+        <ScrollToTop />
         <Onboarding />
         <Layout>
           <Routes>
