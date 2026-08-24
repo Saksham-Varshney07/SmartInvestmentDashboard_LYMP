@@ -18,18 +18,49 @@ export default function RiskAnalysis() {
     return 5;
   };
 
-  const [step, setStep] = useState(1);
-  const [stocks, setStocks] = useState([]);
+  const [step, setStep] = useState(() => {
+    const saved = sessionStorage.getItem('risk_step');
+    return saved ? parseInt(saved) : 1;
+  });
+  const [stocks, setStocks] = useState(() => {
+    const saved = sessionStorage.getItem('risk_stocks');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [stockInput, setStockInput] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [budget, setBudget] = useState(100000);
-  const [duration, setDuration] = useState(5);
-  const [riskProfile, setRiskProfile] = useState(currentUser?.risk_profile ? mapRisk(currentUser.risk_profile) : 'Balanced');
+  const [budget, setBudget] = useState(() => {
+    const saved = sessionStorage.getItem('risk_budget');
+    return saved ? parseInt(saved) : 100000;
+  });
+  const [duration, setDuration] = useState(() => {
+    const saved = sessionStorage.getItem('risk_duration');
+    return saved ? parseInt(saved) : 5;
+  });
+  const [riskProfile, setRiskProfile] = useState(() => {
+    const saved = sessionStorage.getItem('risk_profile');
+    return saved ? saved : (currentUser?.risk_profile ? mapRisk(currentUser.risk_profile) : 'Balanced');
+  });
   
   const [loading, setLoading] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisResult, setAnalysisResult] = useState(() => {
+    const saved = sessionStorage.getItem('risk_analysisResult');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [confirmApply, setConfirmApply] = useState(null);
+
+  useEffect(() => {
+    sessionStorage.setItem('risk_step', step);
+    sessionStorage.setItem('risk_stocks', JSON.stringify(stocks));
+    sessionStorage.setItem('risk_budget', budget);
+    sessionStorage.setItem('risk_duration', duration);
+    sessionStorage.setItem('risk_profile', riskProfile);
+    if (analysisResult) {
+      sessionStorage.setItem('risk_analysisResult', JSON.stringify(analysisResult));
+    } else {
+      sessionStorage.removeItem('risk_analysisResult');
+    }
+  }, [step, stocks, budget, duration, riskProfile, analysisResult]);
 
   useEffect(() => {
     if (!stockInput.trim()) {
@@ -114,8 +145,8 @@ export default function RiskAnalysis() {
       });
       const data = await response.json();
       if (data.status === 'success') {
-        alert('Blueprint applied successfully! Redirecting to your portfolio.');
-        navigate('/portfolio');
+        alert('Blueprint successfully copied to your Sandbox Portfolio! Redirecting...');
+        navigate('/portfolio', { state: { targetPortfolio: 'sandbox' } });
       } else {
         alert('Failed to apply blueprint.');
       }
@@ -519,7 +550,7 @@ export default function RiskAnalysis() {
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Apply Blueprint</h3>
               <p className="text-slate-500 dark:text-slate-400 mb-6">
-                Are you sure you want to overwrite your real portfolio with <strong>{confirmApply.name}</strong>? This action will reset your current tracked assets to match this AI suggestion.
+                Are you sure you want to copy the <strong>{confirmApply.name}</strong> blueprint to your <strong>Sandbox Portfolio</strong>? This will safely overwrite your current Sandbox assets without affecting your Real Portfolio.
               </p>
               <div className="flex gap-3">
                 <button 

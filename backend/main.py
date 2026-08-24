@@ -416,10 +416,7 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         if not stocks_list:
             raise ValueError('No stocks provided.')
             
-        # AI uniquely injects core baseline assets to guarantee a valid diversified MPT universe 
-        # even if the user only provides 1 or 2 highly correlated stocks.
-        core_assets = ["NIFTYBEES.NS", "GOLDBEES.NS", "LIQUIDBEES.NS"]
-        stocks_list = list(set(stocks_list + core_assets))
+        stocks_list = list(set(stocks_list))
             
         raw_tickers = [s.upper().strip() for s in stocks_list]
             
@@ -462,11 +459,7 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         if returns.empty:
             raise ValueError("Not enough historical data to compute returns.")
             
-        user_tickers = [t for t in valid_tickers if t not in core_assets]
-        if not user_tickers:
-            user_tickers = valid_tickers # Fallback
-            
-        yf_tickers = user_tickers
+        yf_tickers = valid_tickers
             
         # 2. Real Correlation Matrix
         corr_df = returns.corr()
@@ -487,15 +480,15 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         warnings_array = []
         high_correlation = False
         
-        for i in range(len(user_tickers)):
-            for j in range(i+1, len(user_tickers)):
-                s1, s2 = user_tickers[i], user_tickers[j]
+        for i in range(len(yf_tickers)):
+            for j in range(i+1, len(yf_tickers)):
+                s1, s2 = yf_tickers[i], yf_tickers[j]
                 c_val = corr_df.loc[s1, s2]
                 if c_val > 0.45:
                     high_correlation = True
                     warnings_array.append(f"HIGH CORRELATION RISK: Mathematical correlation of {round(c_val*100)}% detected between {s1} and {s2} on daily returns. These assets are moving together.")
         
-        if len(user_tickers) <= 2:
+        if len(yf_tickers) <= 2:
             warnings_array.append("DIVERSIFICATION WARNING: Only choosing 1-2 stocks concentrates capital too heavily. Consider blending in stable mutual funds.")
             
         # 4. Sector Exposure Breakdown (100% Real via concurrent fetch)

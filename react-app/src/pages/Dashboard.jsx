@@ -10,13 +10,14 @@ export default function Dashboard() {
     assets: [],
     recent_activity: []
   });
+  const [portfolioType, setPortfolioType] = useState('real');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchPortfolio = async () => {
     if (!currentUser) return;
     setIsRefreshing(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/portfolio/${currentUser.user_id}`);
+      const res = await fetch(`http://127.0.0.1:8000/api/portfolio/${currentUser.user_id}?type=${portfolioType}`);
       const data = await res.json();
       if (data.status === 'success') {
         setPortfolio(data);
@@ -34,7 +35,7 @@ export default function Dashboard() {
       const interval = setInterval(fetchPortfolio, 5000); 
       return () => clearInterval(interval);
     }
-  }, [currentUser]);
+  }, [currentUser, portfolioType]);
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val || 0);
 
@@ -117,9 +118,25 @@ export default function Dashboard() {
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8 mb-20 lg:mb-0">
       
-      <div className="mb-8">
-         <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Dashboard Overview</h1>
-         <p className="text-slate-500 dark:text-slate-400 mt-1">Welcome back, {currentUser?.username}. Here's a quick summary of your wealth.</p>
+      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+         <div>
+           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Dashboard Overview</h1>
+           <p className="text-slate-500 dark:text-slate-400 mt-1">Welcome back, {currentUser?.username}. Here's a quick summary of your wealth.</p>
+         </div>
+         <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 self-start md:self-auto shrink-0">
+           <button 
+             onClick={() => setPortfolioType('real')}
+             className={`px-6 py-1.5 rounded-md font-semibold text-sm transition-all ${portfolioType === 'real' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+           >
+             Real
+           </button>
+           <button 
+             onClick={() => setPortfolioType('sandbox')}
+             className={`px-6 py-1.5 rounded-md font-semibold text-sm transition-all ${portfolioType === 'sandbox' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+           >
+             Sandbox
+           </button>
+         </div>
       </div>
 
       {/* Dynamic Overview Cards */}

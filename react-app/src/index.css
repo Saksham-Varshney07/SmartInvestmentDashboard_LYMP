@@ -110,8 +110,19 @@ body {
 
 /* Fix ApexCharts text colors in dark mode */
 .dark .apexcharts-canvas text,
-.dark .apexcharts-canvas tspan {
+.dark .apexcharts-canvas tspan,
+.dark .apexcharts-legend-text {
   fill: #f8fafc !important;
+  color: #f8fafc !important;
+}
+
+/* Fix Recharts tooltip in dark mode */
+.dark .recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+.dark .recharts-tooltip-label {
   color: #f8fafc !important;
 }
 
