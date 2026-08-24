@@ -13,7 +13,9 @@ export default function Portfolio() {
     recent_activity: []
   });
 
-  const [portfolioType, setPortfolioType] = useState('real');
+  const [portfolioType, setPortfolioType] = useState(() => {
+    return location.state?.targetPortfolio === 'sandbox' ? 'sandbox' : 'real';
+  });
   const [showTxModal, setShowTxModal] = useState(false);
   const [txForm, setTxForm] = useState({ id: null, symbol: '', transaction_type: 'BUY', shares: '', price_at_purchase: '' });
   const [txSuggestions, setTxSuggestions] = useState([]);
