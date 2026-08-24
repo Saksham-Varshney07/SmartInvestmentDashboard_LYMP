@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import Shepherd from 'shepherd.js';
 import { AuthContext } from '../context/AuthContext';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Portfolio() {
   const { currentUser } = useContext(AuthContext);
@@ -16,6 +17,7 @@ export default function Portfolio() {
   const [portfolioType, setPortfolioType] = useState(() => {
     return location.state?.targetPortfolio === 'sandbox' ? 'sandbox' : 'real';
   });
+  const [expandedAsset, setExpandedAsset] = useState(null);
   const [showTxModal, setShowTxModal] = useState(false);
   const [txForm, setTxForm] = useState({ id: null, symbol: '', transaction_type: 'BUY', shares: '', price_at_purchase: '' });
   const [txSuggestions, setTxSuggestions] = useState([]);
@@ -26,6 +28,20 @@ export default function Portfolio() {
   const txSearchRef = useRef(null);
   const txSearchTimeoutRef = useRef(null);
   const tourRef = useRef(null);
+
+  const getAssetChartData = (asset) => {
+    if (!asset.history || asset.history.length === 0) return [];
+    const sortedHistory = [...asset.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const chartData = sortedHistory.map(tx => ({
+        dateStr: new Date(tx.date).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: '2-digit'}),
+        price: tx.price
+    }));
+    chartData.push({
+        dateStr: 'Today',
+        price: asset.live_price
+    });
+    return chartData;
+  };
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -234,23 +250,66 @@ export default function Portfolio() {
              ) : (
                 <div className="space-y-4">
                   {portfolio.assets.map((asset, i) => (
-                    <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border border-slate-100 dark:border-slate-800 rounded-lg hover:border-blue-100 dark:hover:border-slate-700 hover:shadow-md transition-all group">
-                      <div className="flex items-center gap-4">
-                         <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 uppercase transition-colors">
-                           {asset.symbol.substring(0,2)}
+                    <div key={i} className="flex flex-col border border-slate-100 dark:border-slate-800 rounded-lg hover:border-blue-100 dark:hover:border-slate-700 hover:shadow-md transition-all group overflow-hidden">
+                      <div 
+                        onClick={() => setExpandedAsset(expandedAsset === asset.symbol ? null : asset.symbol)}
+                        className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 cursor-pointer w-full"
+                      >
+                         <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-full flex items-center justify-center font-bold text-sm text-slate-700 dark:text-slate-300 uppercase transition-colors">
+                              {asset.symbol.substring(0,2)}
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                {asset.symbol}
+                                <span className={`material-symbols-outlined text-[16px] text-slate-400 transition-transform ${expandedAsset === asset.symbol ? 'rotate-180' : ''}`}>expand_more</span>
+                              </h4>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">{Number(asset.shares.toFixed(2))} shares @ {formatCurrency(asset.live_price)}</p>
+                            </div>
                          </div>
-                         <div>
-                           <h4 className="font-bold text-slate-900 dark:text-white">{asset.symbol}</h4>
-                           <p className="text-xs text-slate-500 dark:text-slate-400">{asset.shares} shares @ {formatCurrency(asset.live_price)}</p>
+                         <div className="mt-4 sm:mt-0 text-right w-full sm:w-auto flex justify-between sm:block">
+                            <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(asset.current_value)}</p>
+                            <div className={`text-xs font-semibold flex items-center sm:justify-end ${asset.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                              <span className="material-symbols-outlined text-sm mr-0.5">{asset.profit >= 0 ? 'trending_up' : 'trending_down'}</span> 
+                              {Math.abs(asset.profit_pct).toFixed(2)}% ({formatCurrency(Math.abs(asset.profit))})
+                            </div>
                          </div>
                       </div>
-                      <div className="mt-4 sm:mt-0 text-right">
-                         <p className="font-bold text-slate-900 dark:text-white">{formatCurrency(asset.current_value)}</p>
-                         <div className={`text-xs font-semibold flex items-center justify-end ${asset.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                           <span className="material-symbols-outlined text-sm mr-0.5">{asset.profit >= 0 ? 'trending_up' : 'trending_down'}</span> 
-                           {Math.abs(asset.profit_pct).toFixed(2)}% ({formatCurrency(Math.abs(asset.profit))})
+                      
+                      {expandedAsset === asset.symbol && (
+                         <div className="bg-slate-50 dark:bg-slate-800/30 p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 animate-[fadeIn_0.2s_ease-in-out]">
+                           <div className="flex flex-col lg:flex-row gap-6 items-center">
+                             <div className="flex-1">
+                               <h5 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Performance Explainer</h5>
+                               <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                                 You invested a total of <strong className="text-slate-900 dark:text-white">{formatCurrency(asset.invested)}</strong> to acquire {Number(asset.shares.toFixed(2))} shares of {asset.symbol} at an average price of <strong className="text-slate-900 dark:text-white">{formatCurrency(asset.shares > 0 ? asset.invested / asset.shares : 0)}</strong>. 
+                                 Since your purchase, the live market price has moved to <strong className="text-slate-900 dark:text-white">{formatCurrency(asset.live_price)}</strong>. 
+                                 This price action has generated a net {asset.profit >= 0 ? 'profit' : 'loss'} of <strong className={asset.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>{formatCurrency(Math.abs(asset.profit))}</strong>.
+                               </p>
+                             </div>
+                             <div className="w-full lg:w-64 h-32 shrink-0">
+                               <ResponsiveContainer width="100%" height="100%">
+                                 <AreaChart data={getAssetChartData(asset)}>
+                                   <defs>
+                                     <linearGradient id={`colorValue${i}`} x1="0" y1="0" x2="0" y2="1">
+                                       <stop offset="5%" stopColor={asset.profit >= 0 ? '#10b981' : '#ef4444'} stopOpacity={0.3}/>
+                                       <stop offset="95%" stopColor={asset.profit >= 0 ? '#10b981' : '#ef4444'} stopOpacity={0}/>
+                                     </linearGradient>
+                                   </defs>
+                                   <XAxis dataKey="dateStr" hide />
+                                   <YAxis domain={['auto', 'auto']} hide />
+                                   <Tooltip 
+                                     contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                                     cursor={{stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3'}}
+                                     formatter={(value) => [formatCurrency(value), 'Price']}
+                                   />
+                                   <Area type="monotone" dataKey="price" stroke={asset.profit >= 0 ? '#10b981' : '#ef4444'} strokeWidth={2} fillOpacity={1} fill={`url(#colorValue${i})`} />
+                                 </AreaChart>
+                               </ResponsiveContainer>
+                             </div>
+                           </div>
                          </div>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -275,7 +334,7 @@ export default function Portfolio() {
                        <div>
                          <p className="text-sm font-bold text-slate-900 dark:text-white">{tx.type} {tx.symbol}</p>
                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                           {tx.shares} @ {formatCurrency(tx.price)} • {new Date(tx.date).toLocaleDateString()}
+                           {Number(tx.shares.toFixed(2))} @ {formatCurrency(tx.price)} • {new Date(tx.date).toLocaleDateString()}
                          </p>
                        </div>
                      </div>
