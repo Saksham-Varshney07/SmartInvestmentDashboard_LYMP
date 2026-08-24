@@ -272,7 +272,9 @@ export default function Portfolio() {
                        </div>
                        <div>
                          <p className="text-sm font-bold text-slate-900 dark:text-white">{tx.type} {tx.symbol}</p>
-                         <p className="text-xs text-slate-500 dark:text-slate-400">{tx.shares} @ {formatCurrency(tx.price)}</p>
+                         <p className="text-xs text-slate-500 dark:text-slate-400">
+                           {tx.shares} @ {formatCurrency(tx.price)} • {new Date(tx.date).toLocaleDateString()}
+                         </p>
                        </div>
                      </div>
                      <div className="flex items-center gap-2">

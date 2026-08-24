@@ -51,7 +51,8 @@ export default function Layout({ children }) {
           username: loginForm.username.trim(),
           full_name: isSignup ? loginForm.full_name.trim() : '',
           risk_profile: isSignup ? loginForm.risk_profile : '',
-          investment_horizon: isSignup ? loginForm.investment_horizon : ''
+          investment_horizon: isSignup ? loginForm.investment_horizon : '',
+          is_signup: isSignup
         })
       });
       const data = await res.json();

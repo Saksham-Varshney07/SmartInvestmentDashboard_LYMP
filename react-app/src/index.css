@@ -107,3 +107,11 @@ body {
 .shepherd-dark .shepherd-button.btn-secondary:hover {
   color: #ffffff !important;
 }
+
+/* Fix ApexCharts text colors in dark mode */
+.dark .apexcharts-canvas text,
+.dark .apexcharts-canvas tspan {
+  fill: #f8fafc !important;
+  color: #f8fafc !important;
+}
+
