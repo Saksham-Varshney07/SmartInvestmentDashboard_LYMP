@@ -38,7 +38,7 @@ export default function StockSearch() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-12 text-slate-500 dark:text-slate-400 bg-[#f8f9fa] dark:bg-slate-950 transition-colors duration-300">
+      <div className="min-h-screen flex flex-col items-center justify-center p-12 text-slate-500 dark:text-slate-400 bg-transparent transition-colors duration-300">
          <span className="material-symbols-outlined text-4xl mb-4 animate-spin">data_usage</span>
          <p>Fetching live market data and fundamentals...</p>
       </div>
@@ -47,7 +47,7 @@ export default function StockSearch() {
 
   if (fetchError) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-12 bg-[#f8f9fa] dark:bg-slate-950 transition-colors duration-300">
+      <div className="min-h-screen flex flex-col items-center justify-center p-12 bg-transparent transition-colors duration-300">
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-6 rounded-xl flex items-start gap-3 max-w-md">
           <span className="material-symbols-outlined mt-0.5">error</span>
           <div>
@@ -128,9 +128,25 @@ export default function StockSearch() {
     return parts;
   };
 
+  const getStabilityExplainer = () => {
+    if (!r.stability) return null;
+    const vol = r.volatility ? (r.volatility * 100).toFixed(2) : 0;
+    const ar = r.anomaly_ratio ? (r.anomaly_ratio * 100).toFixed(1) : 0;
+    
+    if (r.stability === 'Stable') {
+      return `Classified as Stable because the rolling price volatility (${vol}%) is safely below the 3% risk threshold, and the ML anomaly detection flagged only ${ar}% of historical trading days as outliers (below the 10% maximum tolerance).`;
+    } else {
+      let reasons = [];
+      if (Number(vol) > 3) reasons.push(`excessive rolling volatility (${vol}% > 3% limit)`);
+      if (Number(ar) > 10) reasons.push(`high frequency of erratic trading sessions (${ar}% > 10% anomaly tolerance)`);
+      
+      return `Flagged as Unstable by the Isolation Forest model due to ${reasons.join(' and ')}.`;
+    }
+  };
+
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] dark:bg-slate-950 antialiased font-['Inter'] transition-colors duration-300">
+    <div className="min-h-screen bg-transparent antialiased font-['Inter'] transition-colors duration-300">
       <main className="max-w-[1440px] mx-auto px-6 py-6 pb-20">
         
         {/* Breadcrumb & Title */}
@@ -158,7 +174,7 @@ export default function StockSearch() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 mb-6 transition-colors">
             <div className="mb-6">
               <h2 className="text-3xl font-bold text-slate-900 dark:text-white flex items-baseline gap-2">
-                ₹{latestPrice.toFixed(2)}
+                {f?.currency === 'INR' || stockname?.endsWith('.NS') ? '₹' : '$'}{latestPrice.toFixed(2)}
                 <span className={`text-sm font-semibold flex items-center gap-1 ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                   {isPositive ? '+' : ''}{priceChange.toFixed(2)} ({isPositive ? '+' : ''}{pctChange.toFixed(2)}%)
                 </span>
@@ -183,11 +199,11 @@ export default function StockSearch() {
                      axisLine={false} 
                      tickLine={false}
                      tick={{fontSize: 12, fill: '#64748b'}}
-                     tickFormatter={(val) => `₹${val}`}
+                     tickFormatter={(val) => `${f?.currency === 'INR' || stockname?.endsWith('.NS') ? '₹' : '$'}${val}`}
                   />
                   <Tooltip 
                      labelFormatter={(l) => new Date(l).toLocaleDateString()}
-                     formatter={(val) => [`₹${Number(val).toFixed(2)}`, 'Price']}
+                     formatter={(val) => [`${f?.currency === 'INR' || stockname?.endsWith('.NS') ? '₹' : '$'}${Number(val).toFixed(2)}`, 'Price']}
                   />
                   <Line 
                      type="monotone" 
@@ -354,8 +370,8 @@ export default function StockSearch() {
                    <span className="font-semibold capitalize">{r.trend || '-'}</span>
                  </div>
                </div>
-               <p className="mt-4 text-xs text-slate-400 dark:text-slate-500 italic border-t border-slate-100 dark:border-slate-800 pt-3">
-                 {r.stability === 'Stable' ? '✓ This asset shows consistent, predictable behavior — ideal for medium-term holding.' : '⚠ This asset shows irregular trading patterns. Not recommended for low-risk portfolios.'}
+               <p className="mt-4 text-xs text-slate-500 dark:text-slate-400 font-bold border-t border-slate-100 dark:border-slate-800 pt-3 leading-relaxed">
+                 {getStabilityExplainer()}
                </p>
              </div>
            )}
@@ -408,7 +424,7 @@ export default function StockSearch() {
                       symbol: f.shortName || stockname.toUpperCase(),
                       transaction_type: 'BUY',
                       shares: 10,
-                      price_at_purchase: latestPrice,
+                      price_at_purchase: startPrice > 0 ? startPrice : latestPrice,
                       portfolio_type: 'sandbox'
                     })
                   });
@@ -416,8 +432,9 @@ export default function StockSearch() {
                 } catch (e) {
                   console.error(e);
                 }
-              }} className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-3 rounded-lg transition-colors">
-                Buy 10 Shares (Sandbox)
+              }} className="w-full bg-[#059669] hover:bg-[#047857] text-white font-bold py-3 rounded-lg transition-colors flex flex-col items-center">
+                <span>Buy 10 Shares (Sandbox)</span>
+                <span className="text-[10px] font-normal opacity-80 mt-0.5">Simulates purchase at start of {timeRange} chart</span>
               </button>
 
               <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">

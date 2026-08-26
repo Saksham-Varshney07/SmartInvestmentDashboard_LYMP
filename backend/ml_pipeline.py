@@ -27,7 +27,17 @@ def feature_engineering(df):
         return df
     df['Returns'] = df.groupby('Symbol')['Close'].pct_change()
     df['Volatility'] = df.groupby('Symbol')['Returns'].transform(lambda x: x.rolling(window=14).std())
-    df['Yearly_Return'] = df.groupby('Symbol')['Close'].pct_change(periods=252)
+    
+    def calc_yearly_return(group):
+        if group.empty:
+            return pd.Series(dtype=float)
+        symbol = str(group.name).upper()
+        # Crypto trades 365 days a year, traditional stocks trade ~252 days
+        period = 365 if "-USD" in symbol else 252
+        return group.pct_change(periods=period)
+
+    df['Yearly_Return'] = df.groupby('Symbol', group_keys=False)['Close'].apply(calc_yearly_return)
+    
     first_price = df.groupby('Symbol')['Close'].transform('first')
     df['Yearly_Return'] = df['Yearly_Return'].fillna((df['Close'] - first_price) / first_price)
     df['Average_Price'] = df.groupby('Symbol')['Close'].transform('mean')

@@ -97,14 +97,18 @@ def run_single_analysis(symbol: str, db: Session=Depends(get_db)):
     symbol = symbol.upper()
     try:
         raw_df = get_stock_data([symbol], period="max")
-        if raw_df.empty:
-            raise HTTPException(status_code=404, detail=f'No data available for symbol {symbol}')
+        if raw_df.empty or len(raw_df) < 14:
+            suggestion = ""
+            if ".BO" in symbol:
+                suggestion = f" Try using the NSE ticker instead: {symbol.replace('.BO', '.NS')}."
+            raise HTTPException(status_code=404, detail=f'Insufficient historical data available from Yahoo Finance for symbol {symbol} (requires at least 14 days of trading history).{suggestion}')
+        
         final_output, full_processed_df = run_pipeline(raw_df)
         if full_processed_df.empty:
             suggestion = ""
             if ".BO" in symbol:
                 suggestion = f" Try using the NSE ticker instead: {symbol.replace('.BO', '.NS')}."
-            raise HTTPException(status_code=404, detail=f'Insufficient historical data to train AI models for {symbol}.{suggestion}')
+            raise HTTPException(status_code=404, detail=f'Insufficient data to train AI anomaly models for {symbol}.{suggestion}')
         market_entries = []
         for _, row in full_processed_df.iterrows():
             market_entry = models.AssetPrice(ticker=str(row['Symbol']), date=row['Date'], open=float(row['Open']), high=float(row['High']), low=float(row['Low']), close=float(row['Close']), volume=int(row['Volume']))
