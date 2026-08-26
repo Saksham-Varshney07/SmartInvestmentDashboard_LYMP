@@ -100,6 +100,11 @@ def run_single_analysis(symbol: str, db: Session=Depends(get_db)):
         if raw_df.empty:
             raise HTTPException(status_code=404, detail=f'No data available for symbol {symbol}')
         final_output, full_processed_df = run_pipeline(raw_df)
+        if full_processed_df.empty:
+            suggestion = ""
+            if ".BO" in symbol:
+                suggestion = f" Try using the NSE ticker instead: {symbol.replace('.BO', '.NS')}."
+            raise HTTPException(status_code=404, detail=f'Insufficient historical data to train AI models for {symbol}.{suggestion}')
         market_entries = []
         for _, row in full_processed_df.iterrows():
             market_entry = models.AssetPrice(ticker=str(row['Symbol']), date=row['Date'], open=float(row['Open']), high=float(row['High']), low=float(row['Low']), close=float(row['Close']), volume=int(row['Volume']))

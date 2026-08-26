@@ -66,11 +66,10 @@ export default function Dashboard() {
   // Colors for charts
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#F15B5B', '#4D4D4E'];
 
-  // Generate REAL historical curve based on actual user transaction dates
   const performanceData = React.useMemo(() => {
     if (!portfolio.assets || portfolio.assets.length === 0) return [];
     
-    // Extract all transactions from all assets
+    // Extract all transactions
     let allTransactions = [];
     portfolio.assets.forEach(asset => {
        if (asset.history) {
@@ -86,31 +85,60 @@ export default function Dashboard() {
     // Sort transactions by date ascending
     allTransactions.sort((a, b) => a.date - b.date);
     
-    // Build cumulative timeline
-    let cumulative = 0;
-    const timeline = [];
+    if (allTransactions.length === 0) return [];
+    
+    // Start date (first transaction) and end date (today)
+    const startDate = new Date(allTransactions[0].date);
+    startDate.setHours(0,0,0,0);
+    const endDate = new Date();
+    endDate.setHours(23,59,59,999);
+    
+    // Group transactions by date string (month-day-year)
+    const txByDate = {};
     allTransactions.forEach(tx => {
-        cumulative += tx.amount;
-        const monthDay = tx.date.toLocaleString('default', { month: 'short', day: 'numeric' });
-        // Avoid duplicate dates by updating the last one if it's the same day
-        if (timeline.length > 0 && timeline[timeline.length - 1].dateStr === monthDay) {
-            timeline[timeline.length - 1].value = cumulative;
-        } else {
-            timeline.push({ dateStr: monthDay, value: Math.max(0, Math.round(cumulative)) });
-        }
+        const d = new Date(tx.date);
+        d.setHours(0,0,0,0);
+        const k = d.getTime();
+        txByDate[k] = (txByDate[k] || 0) + tx.amount;
     });
     
-    // Add today's live value at the end if it's different from the last transaction
-    const today = new Date();
-    const todayStr = 'Today';
-    const currentLiveValue = portfolio.summary.portfolio_value || cumulative;
+    const timeline = [];
+    let cumulative = 0;
     
-    // If the portfolio is very new (only 1 data point), add a fake previous point to draw a line
-    if (timeline.length === 1) {
-        timeline.unshift({ dateStr: 'Start', value: 0 });
+    // Loop through every single day from start to today
+    let currentDate = new Date(startDate);
+    
+    // If it's a very new portfolio (starts today), add a 'Start' point yesterday so we get a line
+    if (startDate.toDateString() === endDate.toDateString()) {
+        timeline.push({ dateStr: 'Start', value: 0 });
     }
     
-    timeline.push({ dateStr: todayStr, value: Math.round(currentLiveValue) });
+    while (currentDate <= endDate) {
+        const k = currentDate.getTime();
+        if (txByDate[k]) {
+            cumulative += txByDate[k];
+        }
+        
+        // Use 'Today' for the exact match of today's date
+        let dateLabel = currentDate.toLocaleString('default', { month: 'short', day: 'numeric' });
+        if (currentDate.toDateString() === endDate.toDateString()) {
+            dateLabel = 'Today';
+            // On today, override with real live portfolio value if it exists
+            const liveValue = portfolio.summary.portfolio_value;
+            // Only override if liveValue is a valid positive number
+            if (liveValue && typeof liveValue === 'number' && liveValue > 0) {
+                cumulative = liveValue;
+            }
+        }
+        
+        timeline.push({ 
+            dateStr: dateLabel, 
+            value: Math.max(0, Math.round(cumulative)) 
+        });
+        
+        // advance 1 day
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
     
     return timeline;
   }, [portfolio.assets, portfolio.summary.portfolio_value]);
@@ -233,6 +261,7 @@ export default function Dashboard() {
                 <Tooltip 
                   contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
                   cursor={{stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3'}}
+                  formatter={(val) => [val, 'Value']}
                 />
                 <Area 
                   type="monotone" 

@@ -41,8 +41,8 @@ def train_isolation_forest(df):
     Train Isolation Forest on Close, Volume, Returns, Volatility.
     Apply StandardScaler before training.
     """
-    if df.empty:
-        return (None, None)
+    if df is None or df.empty:
+        return (pd.DataFrame(), None)
     features = ['Close', 'Volume', 'Returns', 'Volatility']
     X = df[features].copy()
     scaler = StandardScaler()
@@ -59,6 +59,8 @@ def analyze_risk_and_stability(df):
     { "asset": ..., "risk": ..., "stability": ..., "trend": ..., "returns": ..., "yearly_return": ..., "volatility": ..., "average_price": ..., "latest_price": ..., "anomaly_ratio": ..., "stars": ... }
     """
     results = []
+    if df is None or df.empty:
+        return results
     for symbol, group in df.groupby('Symbol'):
         total_count = len(group)
         anomaly_count = (group['Anomaly_Flag'] == -1).sum()
