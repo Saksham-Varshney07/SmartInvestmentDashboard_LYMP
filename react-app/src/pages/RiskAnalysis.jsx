@@ -1,7 +1,80 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ReactApexChart from 'react-apexcharts';
+import { motion, useMotionValue, useTransform, AnimatePresence, animate } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
+
+const SwipeCard = ({ card, onSwipe, index, isTop, triggerSwipe }) => {
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-200, 200], [-10, 10]);
+  const opacityReject = useTransform(x, [-100, -20, 0], [1, 0, 0]);
+  const opacityWishlist = useTransform(x, [0, 20, 100], [0, 0, 1]);
+  const scale = isTop ? 1 : 0.95 - (index * 0.05);
+  const yOffset = isTop ? 0 : index * 15;
+
+  useEffect(() => {
+    if (isTop && triggerSwipe) {
+      const targetX = triggerSwipe === 'wishlist' ? 300 : -300;
+      animate(x, targetX, { duration: 0.2 }).then(() => {
+        onSwipe(triggerSwipe, card);
+      });
+    }
+  }, [triggerSwipe, isTop, card, x, onSwipe]);
+
+  const handleDragEnd = (event, info) => {
+    if (info.offset.x > 80) {
+      onSwipe('wishlist', card);
+    } else if (info.offset.x < -80) {
+      onSwipe('reject', card);
+    }
+  };
+
+  return (
+    <motion.div
+      style={{ x, rotate, zIndex: 10 - index }}
+      drag={isTop ? "x" : false}
+      dragConstraints={{ left: 0, right: 0 }}
+      onDragEnd={handleDragEnd}
+      whileTap={{ cursor: 'grabbing' }}
+      className={`absolute inset-0 w-full h-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden ${isTop ? 'cursor-grab' : 'pointer-events-none'}`}
+      initial={{ scale: 0.9, y: 30, opacity: 0 }}
+      animate={{ scale, y: yOffset, opacity: 1 }}
+      exit={{ x: x.get() > 0 ? 300 : -300, opacity: 0, transition: { duration: 0.2 } }}
+    >
+      <div className="flex-1 p-6 flex flex-col relative">
+        <motion.div style={{ opacity: opacityWishlist }} className="absolute top-6 left-6 border-4 border-green-500 text-green-500 font-black text-xl px-2 py-1 -rotate-12 rounded z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">BULLISH!</motion.div>
+        <motion.div style={{ opacity: opacityReject }} className="absolute top-6 right-6 border-4 border-red-500 text-red-500 font-black text-xl px-2 py-1 rotate-12 rounded z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">BEARISH!</motion.div>
+        
+        <h3 className="text-3xl font-bold text-slate-900 dark:text-white mb-1">{card.ticker}</h3>
+        <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-4">{card.name}</p>
+        
+        <p className="text-slate-700 dark:text-slate-300 text-sm flex-1 leading-relaxed line-clamp-4">{card.reason}</p>
+        
+        <div className="h-28 w-full mt-auto relative z-30 pointer-events-auto">
+          <p className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">6-Month Trend Projection</p>
+          <ReactApexChart 
+             options={{
+               chart: { type: 'area', sparkline: { enabled: true }, animations: { enabled: false } },
+               stroke: { curve: 'smooth', width: 2 },
+               fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0, stops: [0, 90, 100] } },
+               colors: ['#3b82f6'],
+               tooltip: { 
+                 theme: 'light',
+                 fixed: { enabled: false }, 
+                 x: { show: false }, 
+                 marker: { show: false },
+                 y: { formatter: (val) => '₹' + val, title: { formatter: () => 'Price:' } }
+               }
+             }}
+             series={[{ name: 'Price', data: card.historical_trend }]}
+             type="area"
+             height="100%"
+          />
+        </div>
+      </div>
+    </motion.div>
+  );
+};
 
 export default function RiskAnalysis() {
   const { currentUser } = useContext(AuthContext);
@@ -48,6 +121,91 @@ export default function RiskAnalysis() {
     return saved ? JSON.parse(saved) : null;
   });
   const [confirmApply, setConfirmApply] = useState(null);
+
+  // AI Suggestions State
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiAnswers, setAiAnswers] = useState({
+    horizon: 'Long term',
+    market: 'Indian stocks',
+    risk: 'Medium risk',
+    sector: 'Any'
+  });
+  const [aiApiKey, setAiApiKey] = useState(localStorage.getItem('openRouterApiKey') || '');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState(null);
+  const [aiError, setAiError] = useState(null);
+
+  const [triggerSwipe, setTriggerSwipe] = useState(null);
+
+  const handleSwipe = (direction, card) => {
+    if (direction === 'wishlist') {
+      addStock(card.ticker);
+    }
+    setAiSuggestions(prev => prev.filter(c => c?.ticker !== card?.ticker));
+    setTriggerSwipe(null);
+  };
+
+  const handleGenerateAISuggestions = async () => {
+    if (!aiApiKey.trim()) {
+      setAiError('Please provide an OpenRouter API key.');
+      return;
+    }
+    
+    localStorage.setItem('openRouterApiKey', aiApiKey.trim());
+    setAiLoading(true);
+    setAiError(null);
+
+    const prompt = `I have a budget of ₹${budget}. I am looking for ${aiAnswers.horizon} investments in ${aiAnswers.market}, with a ${aiAnswers.risk} profile. I prefer sectors: ${aiAnswers.sector}. Please suggest 5 specific stock tickers (e.g. HDFCBANK.NS, AAPL) I should consider adding to my portfolio. Provide a 1-sentence reason for each. 
+Return ONLY a raw JSON array (no markdown code blocks, no intro/outro text) matching this exact schema:
+[
+  {
+    "ticker": "AAPL",
+    "name": "Apple Inc.",
+    "reason": "Strong brand and continuous innovation in consumer electronics.",
+    "historical_trend": [120, 125, 130, 128, 135, 150]
+  }
+]
+The historical_trend MUST be an array of 6 numbers representing mock monthly stock prices for the last 6 months. DO NOT return anything except the JSON array.`;
+
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${aiApiKey}`,
+          'HTTP-Referer': window.location.href,
+          'X-Title': 'Smart Investment Dashboard',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-3.1-8b-instruct',
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to fetch recommendations.');
+      }
+
+      let content = data.choices[0].message.content;
+      
+      // Robustly extract JSON array if the LLM includes intro/outro text
+      const match = content.match(/\[[\s\S]*\]/);
+      if (!match) throw new Error('Could not locate JSON array in AI response.');
+      
+      const parsed = JSON.parse(match[0]);
+      
+      if (!Array.isArray(parsed)) throw new Error('AI did not return a valid list.');
+      
+      setAiSuggestions(parsed);
+    } catch (err) {
+      console.error(err);
+      setAiError("Failed to parse AI suggestions. Please try again.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   useEffect(() => {
     sessionStorage.setItem('risk_step', step);
@@ -365,6 +523,9 @@ export default function RiskAnalysis() {
                     className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2.5 px-4 text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold" 
                   />
                   <button onClick={addStock} className="bg-slate-800 dark:bg-slate-700 text-white px-6 font-bold rounded-lg hover:bg-slate-900 dark:hover:bg-slate-600 transition-colors">Add</button>
+                  <button onClick={() => setShowAIModal(true)} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm hover:shadow">
+                    <span className="material-symbols-outlined text-sm">auto_awesome</span> AI Suggest
+                  </button>
                   
                   {showSuggestions && suggestions.length > 0 && (
                     <div className="absolute top-14 left-0 right-24 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl overflow-hidden z-20">
@@ -566,6 +727,170 @@ export default function RiskAnalysis() {
                   Confirm & Apply
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Suggestion Modal with fixed scrolling layout */}
+      {showAIModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh] border border-slate-200 dark:border-slate-800">
+            <div className="flex justify-between items-center p-6 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <h3 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <span className="material-symbols-outlined text-blue-500">psychology</span>
+                AInvestor Suggestions
+              </h3>
+              <button onClick={() => setShowAIModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              {!aiSuggestions ? (
+                <div className="space-y-4">
+                  <p className="text-slate-600 dark:text-slate-400 mb-4">Answer a few quick questions so our AI can tailor stock recommendations to your current budget (₹{budget}).</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Investment Horizon</label>
+                      <select 
+                        value={aiAnswers.horizon} 
+                        onChange={e => setAiAnswers({...aiAnswers, horizon: e.target.value})}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-slate-800 dark:text-white outline-none"
+                      >
+                        <option>Short term (&lt; 1 yr)</option>
+                        <option>Medium term (1-5 yrs)</option>
+                        <option>Long term (5+ yrs)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Market Preference</label>
+                      <select 
+                        value={aiAnswers.market} 
+                        onChange={e => setAiAnswers({...aiAnswers, market: e.target.value})}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-slate-800 dark:text-white outline-none"
+                      >
+                        <option>Indian stocks (NSE/BSE)</option>
+                        <option>US / International stocks</option>
+                        <option>Both</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Risk Tolerance</label>
+                      <select 
+                        value={aiAnswers.risk} 
+                        onChange={e => setAiAnswers({...aiAnswers, risk: e.target.value})}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-slate-800 dark:text-white outline-none"
+                      >
+                        <option>Low risk (Defensive)</option>
+                        <option>Medium risk (Balanced)</option>
+                        <option>High risk (Aggressive)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Preferred Sectors</label>
+                      <input 
+                        type="text" 
+                        value={aiAnswers.sector} 
+                        onChange={e => setAiAnswers({...aiAnswers, sector: e.target.value})}
+                        placeholder="e.g. IT, Banking, Energy, Any"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-slate-800 dark:text-white outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-6 border-t border-slate-100 dark:border-slate-800 pt-6">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">OpenRouter API Key <span className="text-red-500">*</span></label>
+                    <input 
+                      type="password" 
+                      value={aiApiKey} 
+                      onChange={e => setAiApiKey(e.target.value)}
+                      placeholder="sk-or-v1-..."
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-3 text-slate-800 dark:text-white outline-none"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Your key is stored locally and never sent to our servers.</p>
+                  </div>
+
+                  {aiError && (
+                    <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg text-sm">
+                      {aiError}
+                    </div>
+                  )}
+
+                  <div className="mt-8 flex justify-end gap-3">
+                    <button onClick={() => setShowAIModal(false)} className="px-4 py-2 font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">Cancel</button>
+                    <button 
+                      onClick={handleGenerateAISuggestions} 
+                      disabled={aiLoading}
+                      className="px-6 py-2 font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                      {aiLoading ? <span className="material-symbols-outlined animate-spin text-sm">refresh</span> : <span className="material-symbols-outlined text-sm">auto_awesome</span>}
+                      {aiLoading ? 'Generating...' : 'Get Suggestions'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col h-full">
+                  <div className="flex-1 relative w-full flex items-center justify-center min-h-[340px] mb-4">
+                    <AnimatePresence>
+                      {aiSuggestions.map((card, index) => (
+                        <SwipeCard 
+                          key={card.ticker} 
+                          card={card} 
+                          index={index} 
+                          isTop={index === 0}
+                          onSwipe={handleSwipe}
+                          triggerSwipe={index === 0 ? triggerSwipe : null}
+                        />
+                      ))}
+                    </AnimatePresence>
+                    
+                    {aiSuggestions.length === 0 && (
+                      <div className="text-center text-slate-500 animate-fade-in flex flex-col items-center">
+                        <span className="material-symbols-outlined text-6xl mb-4 text-slate-300 dark:text-slate-700">task_alt</span>
+                        <h4 className="text-xl font-bold text-slate-700 dark:text-slate-300 mb-1">All caught up!</h4>
+                        <p className="mt-1 text-sm mb-6">You've reviewed all AI suggestions.</p>
+                        
+                        <button 
+                          onClick={handleGenerateAISuggestions} 
+                          disabled={aiLoading}
+                          className="px-6 py-2.5 font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl transition-colors flex items-center gap-2"
+                        >
+                          {aiLoading ? <span className="material-symbols-outlined animate-spin text-sm">refresh</span> : <span className="material-symbols-outlined text-sm">refresh</span>}
+                          {aiLoading ? 'Refreshing...' : 'Load more stocks'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-center items-center gap-6 mb-6">
+                     <button 
+                       onClick={() => { if(aiSuggestions.length > 0) setTriggerSwipe('reject'); }}
+                       disabled={aiSuggestions.length === 0 || triggerSwipe !== null}
+                       className="w-16 h-16 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-lg text-red-500 border border-slate-100 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all disabled:opacity-50"
+                     >
+                       <span className="material-symbols-outlined text-3xl font-bold">close</span>
+                     </button>
+                     <button 
+                       onClick={() => { if(aiSuggestions.length > 0) setTriggerSwipe('wishlist'); }}
+                       disabled={aiSuggestions.length === 0 || triggerSwipe !== null}
+                       className="w-16 h-16 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-lg text-green-500 border border-slate-100 dark:border-slate-700 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all disabled:opacity-50"
+                     >
+                       <span className="material-symbols-outlined text-3xl font-bold">favorite</span>
+                     </button>
+                  </div>
+
+                  <div className="flex justify-between items-center border-t border-slate-100 dark:border-slate-800 pt-4">
+                    <button onClick={() => setAiSuggestions(null)} className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+                      &larr; Ask again with different settings
+                    </button>
+                    <button onClick={() => setShowAIModal(false)} className="px-6 py-2 font-bold bg-slate-800 dark:bg-slate-700 text-white rounded-lg hover:bg-slate-900 dark:hover:bg-slate-600 transition-colors">
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

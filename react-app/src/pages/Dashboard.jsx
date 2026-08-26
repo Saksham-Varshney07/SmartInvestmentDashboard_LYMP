@@ -13,6 +13,10 @@ export default function Dashboard() {
   const [portfolioType, setPortfolioType] = useState('real');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const fetchPortfolio = async () => {
     if (!currentUser) return;
     setIsRefreshing(true);
