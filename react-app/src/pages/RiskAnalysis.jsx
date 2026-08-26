@@ -198,7 +198,23 @@ The historical_trend MUST be an array of 6 numbers representing mock monthly sto
       
       if (!Array.isArray(parsed)) throw new Error('AI did not return a valid list.');
       
-      setAiSuggestions(parsed);
+      // Override mock trends with real market data
+      const withRealData = await Promise.all(parsed.map(async (card) => {
+        try {
+          const res = await fetch(`http://127.0.0.1:8000/api/market-trend?symbol=${card.ticker}`);
+          if (res.ok) {
+            const trendData = await res.json();
+            if (trendData.trend && trendData.trend.length > 0) {
+              return { ...card, historical_trend: trendData.trend };
+            }
+          }
+        } catch (e) {
+          console.error("Failed to fetch real trend for", card.ticker, e);
+        }
+        return card; // fallback to LLM mock data if backend fetch fails
+      }));
+      
+      setAiSuggestions(withRealData);
     } catch (err) {
       console.error(err);
       setAiError("Failed to parse AI suggestions. Please try again.");

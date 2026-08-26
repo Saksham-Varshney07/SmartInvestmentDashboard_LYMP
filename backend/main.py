@@ -154,6 +154,28 @@ def execute_pipeline(db: Session=Depends(get_db)):
         db.rollback()
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+@app.get('/api/market-trend')
+def get_market_trend(symbol: str):
+    """
+    Fetches the 6-month closing price history for a given symbol for AI card mini-charts.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period="6mo")
+        
+        if hist.empty:
+            # Fallback to appending .NS for Indian stocks just in case
+            if not symbol.endswith('.NS') and not symbol.endswith('.BO'):
+                hist = yf.Ticker(symbol + ".NS").history(period="6mo")
+        
+        if hist.empty:
+            return {"symbol": symbol, "trend": []}
+            
+        # Downsample slightly if it's too large, but 120 days is perfectly fine for Sparkline
+        closes = [round(float(val), 2) for val in hist['Close'].tolist()]
+        return {"symbol": symbol, "trend": closes}
+    except Exception as e:
+        return {"symbol": symbol, "trend": [], "error": str(e)}
 
 @app.post('/api/login')
 def login(req: LoginRequest, db: Session=Depends(get_db)):
