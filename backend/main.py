@@ -510,6 +510,7 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         # 3. Dynamic High-Correlation Warnings
         warnings_array = []
         high_correlation = False
+        correlated_pairs = []
         
         for i in range(len(yf_tickers)):
             for j in range(i+1, len(yf_tickers)):
@@ -517,10 +518,14 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
                 c_val = corr_df.loc[s1, s2]
                 if c_val > 0.45:
                     high_correlation = True
-                    warnings_array.append(f"HIGH CORRELATION RISK: Mathematical correlation of {round(c_val*100)}% detected between {s1} and {s2} on daily returns. These assets are moving together.")
+                    correlated_pairs.append(f"{s1} & {s2}")
+                    
+        if high_correlation:
+            pair_examples = ", ".join(correlated_pairs[:2]) + (" and others" if len(correlated_pairs) > 2 else "")
+            warnings_array.append(f"Overlap Warning: Some stocks in your list (like {pair_examples}) tend to move in the exact same direction. If one drops, the others will likely drop too, making your portfolio riskier.")
         
         if len(yf_tickers) <= 2:
-            warnings_array.append("DIVERSIFICATION WARNING: Only choosing 1-2 stocks concentrates capital too heavily. Consider blending in stable mutual funds.")
+            warnings_array.append("Too Few Stocks: Having only 1-2 stocks is risky because all your money is tied to one company's success. Try adding more stocks to balance it out.")
             
         # 4. Sector Exposure Breakdown (100% Real via concurrent fetch)
         import concurrent.futures
@@ -546,12 +551,12 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
                 "percentage": pct
             })
             if pct > 50 and sector != 'Other/Unknown':
-                warnings_array.append(f"SECTOR CONCENTRATION RISK: {pct}% of your portfolio is concentrated entirely in the '{sector}' sector. This is highly risky if the sector faces a macroeconomic downturn.")
+                warnings_array.append(f"Sector Warning: {pct}% of your portfolio is in the '{sector}' sector. If this specific industry has a bad year, your whole portfolio will suffer.")
                 
         sector_breakdown.sort(key=lambda x: x['percentage'], reverse=True)
         
         if not warnings_array:
-            warnings_array.append("Your chosen stock universe shows excellent diversification and low historical correlation overlap.")
+            warnings_array.append("Great job! Your selected stocks are well balanced and don't overlap too much.")
         
         # 5. MPT Optimization for Allocations
         mean_returns = returns.mean() * 252

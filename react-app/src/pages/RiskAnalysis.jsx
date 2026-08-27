@@ -99,6 +99,10 @@ export default function RiskAnalysis() {
     const saved = sessionStorage.getItem('risk_stocks');
     return saved ? JSON.parse(saved) : [];
   });
+  const [rejectedStocks, setRejectedStocks] = useState(() => {
+    const saved = sessionStorage.getItem('risk_rejected');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [stockInput, setStockInput] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -128,18 +132,24 @@ export default function RiskAnalysis() {
     horizon: 'Long term',
     market: 'Indian stocks',
     risk: 'Medium risk',
-    sector: 'Any'
+    sector: ''
   });
   const [aiApiKey, setAiApiKey] = useState(localStorage.getItem('openRouterApiKey') || '');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState(null);
   const [aiError, setAiError] = useState(null);
+  const [activeWarningIdx, setActiveWarningIdx] = useState(0);
+  const [slideDirection, setSlideDirection] = useState(1);
 
   const [triggerSwipe, setTriggerSwipe] = useState(null);
 
   const handleSwipe = (direction, card) => {
     if (direction === 'wishlist') {
       addStock(card.ticker);
+    } else {
+      const updatedRejected = [...rejectedStocks, card.ticker];
+      setRejectedStocks(updatedRejected);
+      sessionStorage.setItem('risk_rejected', JSON.stringify(updatedRejected));
     }
     setAiSuggestions(prev => prev.filter(c => c?.ticker !== card?.ticker));
     setTriggerSwipe(null);
@@ -155,7 +165,10 @@ export default function RiskAnalysis() {
     setAiLoading(true);
     setAiError(null);
 
-    const prompt = `I have a budget of ₹${budget}. I am looking for ${aiAnswers.horizon} investments in ${aiAnswers.market}, with a ${aiAnswers.risk} profile. I prefer sectors: ${aiAnswers.sector}. Please suggest 5 specific stock tickers (e.g. HDFCBANK.NS, AAPL) I should consider adding to my portfolio. Provide a 1-sentence reason for each. 
+    const excludeTickers = [...stocks.map(s => s.ticker), ...rejectedStocks];
+    const excludeText = excludeTickers.length > 0 ? ` DO NOT suggest any of these tickers under any circumstance: ${excludeTickers.join(', ')}.` : '';
+
+    const prompt = `I have a budget of ₹${budget}. I am looking for ${aiAnswers.horizon} investments in ${aiAnswers.market}, with a ${aiAnswers.risk} profile. I prefer sectors: ${aiAnswers.sector || 'Any'}. Please suggest 5 specific stock tickers (e.g. HDFCBANK.NS, AAPL) I should consider adding to my portfolio.${excludeText} Provide a 1-sentence reason for each. 
 Return ONLY a raw JSON array (no markdown code blocks, no intro/outro text) matching this exact schema:
 [
   {
@@ -571,40 +584,86 @@ The historical_trend MUST be an array of 6 numbers representing mock monthly sto
           <div className="animate-fade-in">
              <button onClick={() => setStep(2)} className="text-sm text-slate-500 flex items-center mb-6 hover:text-slate-800 transition-colors"><span className="material-symbols-outlined text-[16px] mr-1">arrow_back</span> Edit Portfolio inputs</button>
              
-             {/* Dynamic Alerts Module */}
-             <div className="mb-10 p-6 bg-white dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-900 dark:text-white shadow-xl relative overflow-hidden transition-colors">
-                <span className="material-symbols-outlined absolute -right-4 -top-4 text-[100px] text-slate-100 dark:text-slate-700 opacity-80 dark:opacity-20">warning</span>
-                <div className="relative z-10">
-                   <h2 className="text-2xl font-bold mb-2 flex items-center gap-2">
+             {/* Dynamic Alerts Module - Creative Space Saving Carousel */}
+             <div className="mb-10 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm relative overflow-hidden transition-colors flex flex-col md:flex-row gap-6 items-stretch">
+                {/* Left Side Info */}
+                <div className="md:w-1/3 flex flex-col justify-center border-r border-slate-100 dark:border-slate-800 pr-6">
+                   <h2 className="text-2xl font-bold mb-2 flex items-center gap-2 text-slate-900 dark:text-white">
                      <span className={`material-symbols-outlined text-3xl ${analysisResult.has_high_correlation ? 'text-amber-500' : 'text-emerald-500'}`}>
                        {analysisResult.has_high_correlation ? 'warning' : 'check_circle'}
                      </span>
-                     AI Diagnostic Report - {analysisResult.has_high_correlation ? 'Needs Attention' : 'Optimal'}
+                     Diagnostic Report
                    </h2>
-                   <p className="text-slate-500 dark:text-slate-400 mb-6 border-b border-slate-200 dark:border-slate-700 pb-4">
-                     Analyzed {stocks.length} assets mapped against your <strong>{riskProfile}</strong> profile.
+                   <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+                     Analyzed {stocks.length} assets against <strong>{riskProfile}</strong>.
                    </p>
                    
-                   <div className="space-y-4">
-                     {analysisResult.ai_warnings.map((warning, i) => (
-                       <div key={i} className={`flex items-start gap-4 p-4 rounded-xl border ${analysisResult.has_high_correlation ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30' : 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30'}`}>
-                         <span className={`material-symbols-outlined ${analysisResult.has_high_correlation ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                            {analysisResult.has_high_correlation ? 'warning' : 'check_circle'}
-                         </span>
-                         <p className={`${analysisResult.has_high_correlation ? 'text-amber-700 dark:text-amber-200' : 'text-emerald-700 dark:text-emerald-200'} font-medium text-sm leading-relaxed`}>{warning}</p>
-                       </div>
-                     ))}
-                   </div>
+                   {analysisResult.ai_warnings.length > 1 && (
+                     <div className="flex gap-2 items-center mt-auto">
+                       <button 
+                         onClick={() => {
+                           setSlideDirection(-1);
+                           setActiveWarningIdx(prev => prev === 0 ? analysisResult.ai_warnings.length - 1 : prev - 1);
+                         }}
+                         className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                       >
+                         <span className="material-symbols-outlined text-sm">chevron_left</span>
+                       </button>
+                       <span className="text-xs font-bold text-slate-400">{activeWarningIdx + 1} / {analysisResult.ai_warnings.length}</span>
+                       <button 
+                         onClick={() => {
+                           setSlideDirection(1);
+                           setActiveWarningIdx(prev => (prev + 1) % analysisResult.ai_warnings.length);
+                         }}
+                         className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                       >
+                         <span className="material-symbols-outlined text-sm">chevron_right</span>
+                       </button>
+                     </div>
+                   )}
+                </div>
+
+                {/* Right Side Carousel */}
+                <div className="md:w-2/3 relative flex items-center overflow-hidden min-h-[140px]">
+                   {analysisResult.ai_warnings.length > 0 && (
+                     <AnimatePresence mode="wait" custom={slideDirection}>
+                       <motion.div 
+                         key={activeWarningIdx}
+                         custom={slideDirection}
+                         initial={{ x: slideDirection * 60, opacity: 0 }}
+                         animate={{ x: 0, opacity: 1 }}
+                         exit={{ x: slideDirection * -60, opacity: 0 }}
+                         transition={{ duration: 0.25, ease: 'easeOut' }}
+                         className={`w-full absolute p-6 rounded-xl border ${analysisResult.has_high_correlation ? 'bg-gradient-to-r from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-900 border-amber-200 dark:border-amber-500/30' : 'bg-gradient-to-r from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-900 border-emerald-200 dark:border-emerald-500/30'}`}
+                       >
+                         <div className="flex items-start gap-4">
+                           <span className={`material-symbols-outlined text-4xl shrink-0 ${analysisResult.has_high_correlation ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-500 dark:text-emerald-400'}`}>
+                              {analysisResult.has_high_correlation ? 'error' : 'verified_user'}
+                           </span>
+                           <div>
+                             <h4 className={`font-bold text-sm mb-1 uppercase tracking-wider ${analysisResult.has_high_correlation ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                               {analysisResult.has_high_correlation ? 'Risk Identified' : 'All Clear'}
+                             </h4>
+                             <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed text-sm md:text-base">
+                               {analysisResult.ai_warnings[activeWarningIdx]}
+                             </p>
+                           </div>
+                         </div>
+                       </motion.div>
+                     </AnimatePresence>
+                   )}
                 </div>
              </div>
 
              {/* Correlation Heatmap */}
              {analysisResult.correlation_matrix && (
                <div className="mb-12 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-8">
-                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Asset Correlation Matrix</h3>
-                 <p className="text-sm text-slate-500 mb-6">
-                   Darker colors indicate high correlation overlap. If multiple assets move together, diversification is compromised.
-                 </p>
+                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Asset Correlation Matrix</h3>
+                 <div className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed space-y-1">
+                   <p>This grid shows how your stocks move in relation to each other.</p>
+                   <p><span className="text-emerald-600 dark:text-emerald-400 font-semibold">Green blocks</span> mean the stocks move independently (which is good for balancing risk!).</p>
+                   <p><span className="text-red-500 font-semibold">Red blocks</span> mean they move in the exact same direction (which is risky because if one crashes, the other will crash too).</p>
+                 </div>
                  <div className="h-[300px]">
                    <ReactApexChart 
                      key={`heatmap-${analysisResult.correlation_matrix.map(r => r.name).join('-')}`}
@@ -612,6 +671,37 @@ The historical_trend MUST be an array of 6 numbers representing mock monthly sto
                        chart: { type: 'heatmap', toolbar: { show: false } },
                        dataLabels: { enabled: true },
                        colors: ["#dc2626"],
+                       tooltip: {
+                         custom: function({series, seriesIndex, dataPointIndex, w}) {
+                           const val = series[seriesIndex][dataPointIndex];
+                           const s1 = w.config.series[seriesIndex].name;
+                           const s2 = w.config.xaxis.categories[dataPointIndex];
+                           
+                           // Handle self-correlation (diagonal line)
+                           if (s1 === s2) {
+                              return `<div class="p-3 bg-white dark:bg-slate-800 shadow-lg rounded border border-slate-100 dark:border-slate-700">
+                                <div class="font-bold text-slate-800 dark:text-white mb-1">${s1}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">A stock is always 100% correlated with itself.</div>
+                              </div>`;
+                           }
+
+                           let explanation = "";
+                           if (val <= 0.3) {
+                             explanation = "<span style='color: #10b981; font-weight: bold;'>Safe:</span> These stocks move independently.";
+                           } else if (val <= 0.7) {
+                             explanation = "<span style='color: #f59e0b; font-weight: bold;'>Warning:</span> These stocks often move together.";
+                           } else {
+                             explanation = "<span style='color: #ef4444; font-weight: bold;'>Risky:</span> These stocks move in the exact same direction. If one crashes, the other crashes.";
+                           }
+                           
+                           return `<div class="p-3 bg-white dark:bg-slate-800 shadow-xl rounded-lg border border-slate-100 dark:border-slate-700 min-w-[200px]">
+                             <div class="font-bold text-slate-800 dark:text-white mb-2 pb-2 border-b border-slate-100 dark:border-slate-700 text-sm flex justify-between">
+                               <span>${s1}</span> <span class="text-slate-400 px-2">&</span> <span>${s2}</span>
+                             </div>
+                             <div class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">${explanation}</div>
+                           </div>`;
+                         }
+                       },
                        plotOptions: {
                          heatmap: {
                            shadeIntensity: 0.5,
@@ -619,9 +709,9 @@ The historical_trend MUST be an array of 6 numbers representing mock monthly sto
                            useFillColorAsStroke: false,
                            colorScale: {
                              ranges: [
-                               { from: 0.0, to: 0.3, name: 'Low', color: '#10b981' },
-                               { from: 0.31, to: 0.7, name: 'Medium', color: '#f59e0b' },
-                               { from: 0.71, to: 1.0, name: 'High', color: '#ef4444' }
+                               { from: 0.0, to: 0.3, name: 'Low Risk (Green)', color: '#10b981' },
+                               { from: 0.31, to: 0.7, name: 'Medium Risk (Yellow)', color: '#f59e0b' },
+                               { from: 0.71, to: 1.0, name: 'High Risk (Red)', color: '#ef4444' }
                              ]
                            }
                          }
