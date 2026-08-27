@@ -249,34 +249,46 @@ export default function Dashboard() {
         </div>
 
         {/* Original Portfolio Performance Chart */}
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 transition-colors">
+        <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 transition-colors flex flex-col">
           <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Portfolio Performance</h3>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={performanceData} margin={{ top: 10, right: 10, left: 20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="dateStr" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
-                <Tooltip 
-                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
-                  cursor={{stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3'}}
-                  formatter={(val) => [val, 'Value']}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#2563eb" 
-                  strokeWidth={3}
-                  fillOpacity={1} 
-                  fill="url(#colorValue)" 
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="h-64 w-full flex-grow">
+            {performanceData.length === 0 ? (
+              <div className="h-full w-full flex flex-col items-center justify-center text-center p-4">
+                <span className="material-symbols-outlined text-5xl text-slate-200 dark:text-slate-700 mb-4">monitoring</span>
+                <p className="text-slate-500 dark:text-slate-400 mb-5 max-w-[280px]">
+                  Add stocks to get a glimpse of what your portfolio looks like and track your performance over time.
+                </p>
+                <Link to="/portfolio" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors shadow-sm">
+                  Go to Portfolio
+                </Link>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={performanceData} margin={{ top: 10, right: 10, left: 20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="dateStr" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                  <Tooltip 
+                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', backgroundColor: 'var(--tooltip-bg, #fff)'}}
+                    cursor={{stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '3 3'}}
+                    formatter={(val) => [formatCurrency(val), 'Value']}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="value" 
+                    stroke="#2563eb" 
+                    strokeWidth={3}
+                    fillOpacity={1} 
+                    fill="url(#colorValue)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
