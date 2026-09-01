@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ReactApexChart from 'react-apexcharts';
 import { motion, useMotionValue, useTransform, AnimatePresence, animate } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
+import { AiContext } from '../context/AiContext';
 
 const SwipeCard = ({ card, onSwipe, index, isTop, triggerSwipe }) => {
   const x = useMotionValue(0);
@@ -78,6 +79,7 @@ const SwipeCard = ({ card, onSwipe, index, isTop, triggerSwipe }) => {
 
 export default function RiskAnalysis() {
   const { currentUser } = useContext(AuthContext);
+  const { setAiPageData } = useContext(AiContext);
   const navigate = useNavigate();
 
   const mapRisk = (profile) => {
@@ -168,7 +170,7 @@ export default function RiskAnalysis() {
     const excludeTickers = [...stocks.map(s => s.ticker), ...rejectedStocks];
     const excludeText = excludeTickers.length > 0 ? ` DO NOT suggest any of these tickers under any circumstance: ${excludeTickers.join(', ')}.` : '';
 
-    const prompt = `I have a budget of ₹${budget}. I am looking for ${aiAnswers.horizon} investments in ${aiAnswers.market}, with a ${aiAnswers.risk} profile. I prefer sectors: ${aiAnswers.sector || 'Any'}. Please suggest 5 specific stock tickers (e.g. HDFCBANK.NS, AAPL) I should consider adding to my portfolio.${excludeText} Provide a 1-sentence reason for each. 
+    const prompt = `I have a budget of ₹${budget}. I am looking for ${aiAnswers.horizon} investments in ${aiAnswers.market}, with a ${aiAnswers.risk} profile. I prefer sectors: ${aiAnswers.sector || 'Any'}. Please suggest 5 specific stock tickers I should consider adding to my portfolio.${excludeText} Provide a 1-sentence reason for each. 
 Return ONLY a raw JSON array (no markdown code blocks, no intro/outro text) matching this exact schema:
 [
   {
@@ -178,7 +180,10 @@ Return ONLY a raw JSON array (no markdown code blocks, no intro/outro text) matc
     "historical_trend": [120, 125, 130, 128, 135, 150]
   }
 ]
-The historical_trend MUST be an array of 6 numbers representing mock monthly stock prices for the last 6 months. DO NOT return anything except the JSON array.`;
+CRITICAL RULES:
+1. The "ticker" field MUST be the exact, valid Yahoo Finance ticker symbol (e.g., "HDFCBANK.NS", "RELIANCE.NS", "AAPL", "MSFT"). NEVER put the company name in the "ticker" field.
+2. If suggesting Indian stocks, you MUST append the ".NS" or ".BO" suffix to the ticker (e.g. "INFY.NS").
+3. The historical_trend MUST be an array of 6 numbers representing mock monthly stock prices for the last 6 months. DO NOT return anything except the JSON array.`;
 
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -191,7 +196,8 @@ The historical_trend MUST be an array of 6 numbers representing mock monthly sto
         },
         body: JSON.stringify({
           model: 'meta-llama/llama-3.1-8b-instruct',
-          messages: [{ role: 'user', content: prompt }]
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 1500
         })
       });
 
@@ -244,10 +250,43 @@ The historical_trend MUST be an array of 6 numbers representing mock monthly sto
     sessionStorage.setItem('risk_profile', riskProfile);
     if (analysisResult) {
       sessionStorage.setItem('risk_analysisResult', JSON.stringify(analysisResult));
+      
+      // Push live page data to the AI Context
+      let aiData = `Current Portfolio Stocks: ${stocks.join(', ')}\n`;
+      aiData += `Budget: ₹${budget}, Risk Profile: ${riskProfile}, Horizon: ${duration} years\n`;
+      
+      if (analysisResult.correlation_matrix) {
+        aiData += `\nCORRELATION MATRIX (Red means High Correlation/Risk, Green means Low):\n`;
+        const matrix = analysisResult.correlation_matrix;
+        Object.keys(matrix).forEach(row => {
+          Object.keys(matrix[row]).forEach(col => {
+             if (row !== col) {
+               const val = matrix[row][col];
+               if (typeof val === 'number' && !isNaN(val)) {
+                 const color = val > 0.7 ? "RED (Danger/High Risk)" : val < 0.3 ? "GREEN (Safe/Low Risk)" : "YELLOW (Moderate)";
+                 aiData += `- Correlation between ${row} and ${col} is ${val.toFixed(2)} (${color})\n`;
+               } else {
+                 aiData += `- Correlation between ${row} and ${col} is N/A\n`;
+               }
+             }
+          });
+        });
+      }
+      if (analysisResult.risk_warnings && analysisResult.risk_warnings.length > 0) {
+        aiData += `\nRISK WARNINGS FIRED ON SCREEN:\n`;
+        analysisResult.risk_warnings.forEach(w => aiData += `- ${w.title}: ${w.message}\n`);
+      }
+      setAiPageData(aiData);
     } else {
       sessionStorage.removeItem('risk_analysisResult');
+      setAiPageData("");
     }
-  }, [step, stocks, budget, duration, riskProfile, analysisResult]);
+  }, [step, stocks, budget, duration, riskProfile, analysisResult, setAiPageData]);
+
+  // Clear AI context data when the user leaves the Risk Analysis page
+  useEffect(() => {
+    return () => setAiPageData("");
+  }, [setAiPageData]);
 
   useEffect(() => {
     if (!stockInput.trim()) {
@@ -589,13 +628,13 @@ The historical_trend MUST be an array of 6 numbers representing mock monthly sto
                 {/* Left Side Info */}
                 <div className="md:w-1/3 flex flex-col justify-center border-r border-slate-100 dark:border-slate-800 pr-6">
                    <h2 className="text-2xl font-bold mb-2 flex items-center gap-2 text-slate-900 dark:text-white">
-                     <span className={`material-symbols-outlined text-3xl ${analysisResult.has_high_correlation ? 'text-amber-500' : 'text-emerald-500'}`}>
-                       {analysisResult.has_high_correlation ? 'warning' : 'check_circle'}
+                     <span className={`material-symbols-outlined text-3xl ${analysisResult.ai_warnings.length > 0 && !analysisResult.ai_warnings[0].startsWith('Great job!') ? 'text-amber-500' : 'text-emerald-500'}`}>
+                       {analysisResult.ai_warnings.length > 0 && !analysisResult.ai_warnings[0].startsWith('Great job!') ? 'warning' : 'check_circle'}
                      </span>
                      Diagnostic Report
                    </h2>
                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
-                     Analyzed {stocks.length} assets against <strong>{riskProfile}</strong>.
+                     Analyzed {analysisResult.valid_count || stocks.length} assets against <strong>{riskProfile}</strong>.
                    </p>
                    
                    {analysisResult.ai_warnings.length > 1 && (
@@ -628,28 +667,28 @@ The historical_trend MUST be an array of 6 numbers representing mock monthly sto
                    {analysisResult.ai_warnings.length > 0 && (
                      <AnimatePresence mode="wait" custom={slideDirection}>
                        <motion.div 
-                         key={activeWarningIdx}
-                         custom={slideDirection}
-                         initial={{ x: slideDirection * 60, opacity: 0 }}
-                         animate={{ x: 0, opacity: 1 }}
-                         exit={{ x: slideDirection * -60, opacity: 0 }}
-                         transition={{ duration: 0.25, ease: 'easeOut' }}
-                         className={`w-full absolute p-6 rounded-xl border ${analysisResult.has_high_correlation ? 'bg-gradient-to-r from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-900 border-amber-200 dark:border-amber-500/30' : 'bg-gradient-to-r from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-900 border-emerald-200 dark:border-emerald-500/30'}`}
-                       >
-                         <div className="flex items-start gap-4">
-                           <span className={`material-symbols-outlined text-4xl shrink-0 ${analysisResult.has_high_correlation ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-500 dark:text-emerald-400'}`}>
-                              {analysisResult.has_high_correlation ? 'error' : 'verified_user'}
-                           </span>
-                           <div>
-                             <h4 className={`font-bold text-sm mb-1 uppercase tracking-wider ${analysisResult.has_high_correlation ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
-                               {analysisResult.has_high_correlation ? 'Risk Identified' : 'All Clear'}
-                             </h4>
-                             <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed text-sm md:text-base">
-                               {analysisResult.ai_warnings[activeWarningIdx]}
-                             </p>
-                           </div>
-                         </div>
-                       </motion.div>
+                          key={activeWarningIdx}
+                          custom={slideDirection}
+                          initial={{ x: slideDirection * 60, opacity: 0 }}
+                          animate={{ x: 0, opacity: 1 }}
+                          exit={{ x: slideDirection * -60, opacity: 0 }}
+                          transition={{ duration: 0.25, ease: 'easeOut' }}
+                          className={`w-full absolute p-6 rounded-xl border ${analysisResult.ai_warnings[activeWarningIdx].startsWith('Great job!') ? 'bg-gradient-to-r from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-900 border-emerald-200 dark:border-emerald-500/30' : 'bg-gradient-to-r from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-900 border-amber-200 dark:border-amber-500/30'}`}
+                        >
+                          <div className="flex items-start gap-4">
+                            <span className={`material-symbols-outlined text-4xl shrink-0 ${analysisResult.ai_warnings[activeWarningIdx].startsWith('Great job!') ? 'text-emerald-500 dark:text-emerald-400' : 'text-amber-500 dark:text-amber-400'}`}>
+                               {analysisResult.ai_warnings[activeWarningIdx].startsWith('Great job!') ? 'verified_user' : 'warning'}
+                            </span>
+                            <div>
+                              <h4 className={`font-bold text-sm mb-1 uppercase tracking-wider ${analysisResult.ai_warnings[activeWarningIdx].startsWith('Great job!') ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                                {analysisResult.ai_warnings[activeWarningIdx].startsWith('Great job!') ? 'All Clear' : 'Attention Needed'}
+                              </h4>
+                              <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed text-sm md:text-base">
+                                {analysisResult.ai_warnings[activeWarningIdx]}
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
                      </AnimatePresence>
                    )}
                 </div>

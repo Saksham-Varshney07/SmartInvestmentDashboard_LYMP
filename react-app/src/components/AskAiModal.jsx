@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { askAiChat } from '../services/aiService';
 
-export default function AskAiModal({ symbol, stockData, onClose }) {
+export default function AskAiModal({ symbol, stockData, pageContext, livePageData, onClose }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -26,11 +26,14 @@ export default function AskAiModal({ symbol, stockData, onClose }) {
     setInput('');
     setIsLoading(true);
 
-    const answer = await askAiChat(symbol, newMessages, stockData);
+    const answer = await askAiChat(symbol, newMessages, stockData, pageContext, livePageData);
     
     setMessages([...newMessages, { role: 'assistant', content: answer }]);
     setIsLoading(false);
   };
+
+  const titleText = symbol ? `Ask AI about ${symbol}` : 'Ask AInvestor';
+  const welcomeText = symbol ? `Ask anything about ${symbol}. I can analyze the live data and give you my opinion.` : 'Ask me anything about your portfolio, risk analysis, or general market advice!';
 
   return (
     <AnimatePresence>
@@ -38,13 +41,13 @@ export default function AskAiModal({ symbol, stockData, onClose }) {
         initial={{ opacity: 0, y: 50, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 50, scale: 0.95 }}
-        className="fixed bottom-6 right-6 w-96 max-w-[calc(100vw-3rem)] bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl overflow-hidden z-50 flex flex-col h-[500px] max-h-[80vh]"
+        className="fixed bottom-24 right-6 w-96 max-w-[calc(100vw-3rem)] bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl overflow-hidden z-50 flex flex-col h-[500px] max-h-[80vh]"
       >
         {/* Header */}
         <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-blue-400">magic_button</span>
-            <h3 className="text-white font-semibold">Ask AI about {symbol}</h3>
+            <h3 className="text-white font-semibold">{titleText}</h3>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
             <span className="material-symbols-outlined">close</span>
@@ -56,7 +59,7 @@ export default function AskAiModal({ symbol, stockData, onClose }) {
           {messages.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-slate-500 text-center px-4">
               <span className="material-symbols-outlined text-4xl mb-2 text-slate-600">forum</span>
-              <p>Ask anything about {symbol}. I can analyze the live data and give you my opinion.</p>
+              <p>{welcomeText}</p>
             </div>
           )}
           

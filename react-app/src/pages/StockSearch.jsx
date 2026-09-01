@@ -2,7 +2,6 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import AskAiModal from '../components/AskAiModal';
 
 export default function StockSearch() {
   const { stockname } = useParams();
@@ -13,7 +12,6 @@ export default function StockSearch() {
   const [fetchError, setFetchError] = useState(null);
   const [showReasoning, setShowReasoning] = useState(false);
   const [showBuyModal, setShowBuyModal] = useState(false);
-  const [showAiModal, setShowAiModal] = useState(false);
   const { currentUser } = useContext(AuthContext);
 
   useEffect(() => {
@@ -480,25 +478,6 @@ export default function StockSearch() {
         </div>
       )}
 
-      {/* Ask AI FAB */}
-      {!showAiModal && (
-        <button
-          onClick={() => setShowAiModal(true)}
-          className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 rounded-full shadow-2xl hover:shadow-blue-500/50 hover:scale-105 transition-all z-40 flex items-center gap-2 group"
-        >
-          <span className="material-symbols-outlined text-2xl group-hover:animate-pulse">magic_button</span>
-          <span className="font-bold hidden md:block pr-2">Ask AI</span>
-        </button>
-      )}
-
-      {/* Ask AI Modal */}
-      {showAiModal && (
-        <AskAiModal 
-          symbol={stockname.toUpperCase()} 
-          stockData={data?.analysis}
-          onClose={() => setShowAiModal(false)} 
-        />
-      )}
     </div>
   );
 }

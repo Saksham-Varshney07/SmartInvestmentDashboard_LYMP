@@ -164,7 +164,18 @@ def get_market_trend(symbol: str):
     Fetches the 6-month closing price history for a given symbol for AI card mini-charts.
     """
     try:
-        ticker = yf.Ticker(symbol)
+        # Map known outdated/alias tickers to correct Yahoo Finance tickers
+        TICKER_MAP = {
+            'TATAMOTORS.NS': 'TMCV.NS',
+            'TATAMOTORS': 'TMCV.NS',
+            'INFOSYS.NS': 'INFY.NS',
+            'INFOSYS': 'INFY.NS',
+            'MINDTREE.NS': 'LTIM.NS',
+            'MINDTREE': 'LTIM.NS'
+        }
+        mapped_symbol = TICKER_MAP.get(symbol.upper().strip(), symbol.upper().strip())
+        
+        ticker = yf.Ticker(mapped_symbol)
         hist = ticker.history(period="6mo")
         
         if hist.empty:
@@ -450,16 +461,28 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         stocks_list = list(set(stocks_list))
             
         raw_tickers = [s.upper().strip() for s in stocks_list]
+        
+        # Map known outdated/alias tickers to correct Yahoo Finance tickers
+        TICKER_MAP = {
+            'TATAMOTORS.NS': 'TMCV.NS',
+            'TATAMOTORS': 'TMCV.NS',
+            'INFOSYS.NS': 'INFY.NS',
+            'INFOSYS': 'INFY.NS',
+            'MINDTREE.NS': 'LTIM.NS',
+            'MINDTREE': 'LTIM.NS'
+        }
+        
+        mapped_tickers = [TICKER_MAP.get(t, t) for t in raw_tickers]
             
         # 1. Fetch Real Historical Data (Last 1 Year)
         # Try fetching exactly what was passed first
-        data = yf.download(raw_tickers, period="1y", progress=False)['Close']
+        data = yf.download(mapped_tickers, period="1y", progress=False)['Close']
         if isinstance(data, pd.Series):
-            data = data.to_frame(name=raw_tickers[0])
+            data = data.to_frame(name=mapped_tickers[0])
             
         # Check for failed tickers
         valid_tickers = [c for c in data.columns if not data[c].isna().all()]
-        failed_tickers = [t for t in raw_tickers if t not in valid_tickers]
+        failed_tickers = [t for t in mapped_tickers if t not in valid_tickers]
         
         # Retry failed tickers by appending .NS if they lack a suffix
         retry_tickers = []
@@ -479,6 +502,9 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         if len(valid_tickers) == 0:
             raise ValueError("No valid data returned from Yahoo Finance for the provided stocks.")
             
+        # Add warnings for failed tickers so the user knows they were excluded
+        failed_after_retry = [t for t in mapped_tickers if t not in valid_tickers and (t + '.NS') not in valid_tickers]
+        
         # Filter data to only valid columns
         data = data[valid_tickers]
         
@@ -509,6 +535,9 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
             
         # 3. Dynamic High-Correlation Warnings
         warnings_array = []
+        if failed_after_retry:
+            warnings_array.append(f"Invalid Tickers: Could not fetch data for {', '.join(failed_after_retry)}. They might be misspelled, delisted, or use a different ticker symbol. They were excluded from the analysis.")
+            
         high_correlation = False
         correlated_pairs = []
         
@@ -591,16 +620,23 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
                 return port_perf(weights, mean_ret, cov)[0]
 
             constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+            
+            # For pure optimization, use 0 to 1
             bounds = tuple((0.0, 1.0) for _ in range(num_assets))
+            
+            # For balanced/defender, enforce diversification (e.g., max 40-50% in one stock)
+            max_weight = max(0.4, 1.5 / num_assets) if num_assets >= 3 else 0.8
+            div_bounds = tuple((0.02, max_weight) for _ in range(num_assets))
+            
             init_guess = num_assets * [1. / num_assets,]
             
             # Global Minimum Variance (Defender)
-            opt_def = sco.minimize(port_vol, init_guess, args=(mean_returns, cov_matrix), method='SLSQP', bounds=bounds, constraints=constraints)
+            opt_def = sco.minimize(port_vol, init_guess, args=(mean_returns, cov_matrix), method='SLSQP', bounds=div_bounds, constraints=constraints)
             defender_w = opt_def['x']
             def_ret = np.sum(mean_returns * defender_w)
             
             # Maximum Sharpe (Balanced)
-            opt_bal = sco.minimize(neg_sharpe, init_guess, args=(mean_returns, cov_matrix), method='SLSQP', bounds=bounds, constraints=constraints)
+            opt_bal = sco.minimize(neg_sharpe, init_guess, args=(mean_returns, cov_matrix), method='SLSQP', bounds=div_bounds, constraints=constraints)
             balanced_w = opt_bal['x']
             bal_ret = np.sum(mean_returns * balanced_w)
             
@@ -669,6 +705,7 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         return {
             'status': 'success',
             'analysis': {
+                'valid_count': len(valid_tickers),
                 'has_high_correlation': high_correlation,
                 'ai_warnings': warnings_array,
                 'user_profile_matched': payload.risk_profile,
@@ -713,8 +750,19 @@ def apply_blueprint(user_id: int, req: BlueprintApplyRequest, type: str = 'sandb
             ticker = alloc.get('ticker')
             if not ticker: ticker = alloc.get('name', 'UNKNOWN')
             
-            # Since we don't know real live prices of generics, assume 1 unit costs 100 for simplicity
+            # Fetch the actual live price instead of hardcoding 100.0
             purchase_price = 100.0
+            try:
+                import yfinance as yf
+                import pandas as pd
+                live_price = yf.download(ticker, period="1d", progress=False)['Close']
+                if not live_price.empty:
+                    val = live_price.iloc[-1].iloc[0] if isinstance(live_price, pd.DataFrame) else live_price.iloc[-1]
+                    if not pd.isna(val):
+                        purchase_price = float(val)
+            except Exception as e:
+                print(f"Failed to fetch live price for {ticker}: {e}")
+                
             shares = amount / purchase_price
             
             asset = models.PortfolioAsset(
