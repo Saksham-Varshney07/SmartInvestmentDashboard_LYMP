@@ -1,11 +1,16 @@
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+import { AiContext } from '../context/AiContext';
+import AskAiModal from './AskAiModal';
 
 export default function Layout({ children }) {
   const { currentUser, setCurrentUser } = useContext(AuthContext);
+  const { aiPageData } = useContext(AiContext);
   const [loginForm, setLoginForm] = useState({ username: '', full_name: '', risk_profile: 'Balanced', investment_horizon: 'Medium-term' });
   const [isSignup, setIsSignup] = useState(false);
+  
+  const [showAiModal, setShowAiModal] = useState(false);
   
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark';
@@ -276,6 +281,35 @@ export default function Layout({ children }) {
       <div className="pt-16 flex-1">
          {children}
       </div>
+
+      {/* Global Ask AI FAB */}
+      {currentUser && (
+        <button
+          onClick={() => setShowAiModal(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 hover:scale-105 transition-all z-40 group"
+          title="Ask AInvestor"
+        >
+          <span className="material-symbols-outlined text-2xl group-hover:animate-pulse">smart_toy</span>
+        </button>
+      )}
+
+      {/* Global Ask AI Modal */}
+      {showAiModal && (
+        <AskAiModal 
+          symbol={location.pathname.startsWith('/search/') ? location.pathname.split('/search/')[1] : null}
+          pageContext={
+            location.pathname === '/' ? 'Dashboard' :
+            location.pathname === '/riskanalysis' ? 'Risk Analysis Portfolio Simulator' :
+            location.pathname === '/portfolio' ? 'Live Portfolio Tracking' :
+            location.pathname === '/sipplanner' ? 'SIP Planner' :
+            location.pathname === '/assetexplorer' ? 'Asset Explorer' :
+            location.pathname.startsWith('/search/') ? 'Stock Search / Analysis' :
+            'Navigation'
+          }
+          livePageData={aiPageData}
+          onClose={() => setShowAiModal(false)}
+        />
+      )}
     </div>
   );
 }

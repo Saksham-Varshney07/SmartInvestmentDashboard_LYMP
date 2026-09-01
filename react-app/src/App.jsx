@@ -9,6 +9,7 @@ import AssetExplorer from './pages/AssetExplorer';
 import Account from './pages/Account';
 
 import { AuthProvider } from './context/AuthContext';
+import { AiProvider } from './context/AiContext';
 import Layout from './components/Layout';
 import Onboarding from './components/Onboarding';
 import ScrollToTop from './components/ScrollToTop';
@@ -46,13 +47,15 @@ const AnimatedRoutes = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <ScrollToTop />
-        <Onboarding />
-        <Layout>
-          <AnimatedRoutes />
-        </Layout>
-      </Router>
+      <AiProvider>
+        <Router>
+          <ScrollToTop />
+          <Onboarding />
+          <Layout>
+            <AnimatedRoutes />
+          </Layout>
+        </Router>
+      </AiProvider>
     </AuthProvider>
   );
 }

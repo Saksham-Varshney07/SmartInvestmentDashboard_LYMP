@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+import { AiContext } from '../context/AiContext';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Dashboard() {
   const { currentUser } = useContext(AuthContext);
+  const { setAiPageData } = useContext(AiContext);
   const [portfolio, setPortfolio] = useState({
     summary: { total_investment: 0, portfolio_value: 0, total_profit: 0, total_profit_pct: 0 },
     assets: [],
@@ -146,6 +148,25 @@ export default function Dashboard() {
     
     return timeline;
   }, [portfolio.assets, portfolio.summary.portfolio_value]);
+
+  // Feed live portfolio data to the AI Context
+  useEffect(() => {
+    if (portfolio && portfolio.assets.length > 0) {
+      let aiData = `The user is looking at their ${portfolioType.toUpperCase()} portfolio dashboard.\n`;
+      aiData += `Total Investment: ₹${portfolio.summary.total_investment}\n`;
+      aiData += `Live Portfolio Value: ₹${portfolio.summary.portfolio_value}\n`;
+      aiData += `Total Profit/Loss: ₹${portfolio.summary.total_profit} (${portfolio.summary.total_profit_pct.toFixed(2)}%)\n\n`;
+      aiData += `Current Active Assets in Portfolio:\n`;
+      portfolio.assets.forEach(asset => {
+        aiData += `- ${asset.symbol}: ${asset.shares} shares @ avg price ₹${asset.avg_buy_price} (Allocation: ${asset.allocation_pct}%)\n`;
+      });
+      setAiPageData(aiData);
+    } else {
+      setAiPageData(`The user is looking at their ${portfolioType.toUpperCase()} portfolio dashboard, but it is currently empty.`);
+    }
+
+    return () => setAiPageData("");
+  }, [portfolio, portfolioType, setAiPageData]);
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8 mb-20 lg:mb-0">
