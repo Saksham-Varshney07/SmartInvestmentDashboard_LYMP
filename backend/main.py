@@ -731,3 +731,15 @@ def apply_blueprint(user_id: int, req: BlueprintApplyRequest, type: str = 'sandb
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+class AskAiRequest(BaseModel):
+    question: str
+
+@app.post('/api/ask_ai/{symbol}')
+def ask_ai_about_stock_endpoint(symbol: str, req: AskAiRequest):
+    try:
+        from llm_utils import ask_ai_about_stock
+        answer = ask_ai_about_stock(symbol, req.question)
+        return {'status': 'success', 'answer': answer}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
