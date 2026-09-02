@@ -586,6 +586,94 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
                 
         sector_breakdown.sort(key=lambda x: x['percentage'], reverse=True)
         
+=======
+        
+        if len(valid_tickers) == 0:
+            raise ValueError("No valid data returned from Yahoo Finance for the provided stocks.")
+            
+        # Add warnings for failed tickers so the user knows they were excluded
+        failed_after_retry = [t for t in mapped_tickers if t not in valid_tickers and (t + '.NS') not in valid_tickers]
+        
+        # Filter data to only valid columns
+        data = data[valid_tickers]
+        
+        # Crypto trades 24/7, stocks trade 5 days/week. 
+        # Forward fill stock prices on weekends before dropping NaNs to preserve the timeline.
+        data = data.ffill().dropna()
+        
+        returns = data.pct_change().dropna()
+        if returns.empty:
+            raise ValueError("Not enough historical data to compute returns.")
+            
+        yf_tickers = valid_tickers
+            
+        # 2. Real Correlation Matrix
+        corr_df = returns.corr()
+        
+        correlation_matrix = []
+        for s1 in yf_tickers:
+            row = {'name': s1, 'data': []}
+            for s2 in yf_tickers:
+                if s1 in corr_df.columns and s2 in corr_df.columns:
+                    val = corr_df.loc[s1, s2]
+                    val = 0 if pd.isna(val) else val
+                else:
+                    val = 1.0 if s1 == s2 else 0.0
+                row['data'].append({'x': s2, 'y': round(val, 2)})
+            correlation_matrix.append(row)
+            
+        # 3. Dynamic High-Correlation Warnings
+        warnings_array = []
+        if failed_after_retry:
+            warnings_array.append(f"Invalid Tickers: Could not fetch data for {', '.join(failed_after_retry)}. They might be misspelled, delisted, or use a different ticker symbol. They were excluded from the analysis.")
+            
+        high_correlation = False
+        correlated_pairs = []
+        
+        for i in range(len(yf_tickers)):
+            for j in range(i+1, len(yf_tickers)):
+                s1, s2 = yf_tickers[i], yf_tickers[j]
+                c_val = corr_df.loc[s1, s2]
+                if c_val > 0.45:
+                    high_correlation = True
+                    correlated_pairs.append(f"{s1} & {s2}")
+                    
+        if high_correlation:
+            pair_examples = ", ".join(correlated_pairs[:2]) + (" and others" if len(correlated_pairs) > 2 else "")
+            warnings_array.append(f"Overlap Warning: Some stocks in your list (like {pair_examples}) tend to move in the exact same direction. If one drops, the others will likely drop too, making your portfolio riskier.")
+        
+        if len(yf_tickers) <= 2:
+            warnings_array.append("Too Few Stocks: Having only 1-2 stocks is risky because all your money is tied to one company's success. Try adding more stocks to balance it out.")
+            
+        # 4. Sector Exposure Breakdown (100% Real via concurrent fetch)
+        import concurrent.futures
+        def fetch_sector(ticker):
+            try:
+                sec = yf.Ticker(ticker).info.get('sector')
+                return sec if sec else 'Other/Unknown'
+            except:
+                return 'Other/Unknown'
+                
+        counter = collections.Counter()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            fetched_sectors = list(executor.map(fetch_sector, yf_tickers))
+            
+        for s in fetched_sectors:
+            counter[s] += 1
+            
+        sector_breakdown = []
+        for sector, count in counter.items():
+            pct = round((count / len(yf_tickers)) * 100)
+            sector_breakdown.append({
+                "name": sector,
+                "percentage": pct
+            })
+            if pct > 50 and sector != 'Other/Unknown':
+                warnings_array.append(f"Sector Warning: {pct}% of your portfolio is in the '{sector}' sector. If this specific industry has a bad year, your whole portfolio will suffer.")
+                
+        sector_breakdown.sort(key=lambda x: x['percentage'], reverse=True)
+        
+>>>>>>> c6323aa558641685636bffc51bf3470af291a0f6
         if not warnings_array:
             warnings_array.append("Great job! Your selected stocks are well balanced and don't overlap too much.")
         

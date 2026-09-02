@@ -3,7 +3,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key=os.environ.get("OPENROUTER_API_KEY", "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"),
+    api_key=os.environ.get("OPENROUTER_API_KEY", "YOUR_API_KEY_HERE"),
 )
 
 def ask_ai_about_stock(symbol: str, question: str) -> str:
