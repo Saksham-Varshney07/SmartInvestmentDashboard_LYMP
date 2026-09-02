@@ -187,7 +187,8 @@ def get_market_trend(symbol: str):
             return {"symbol": symbol, "trend": []}
             
         # Downsample slightly if it's too large, but 120 days is perfectly fine for Sparkline
-        closes = [round(float(val), 2) for val in hist['Close'].tolist()]
+        # Drop NaN values to prevent "Out of range float values" JSON error
+        closes = [round(float(val), 2) for val in hist['Close'].dropna().tolist()]
         return {"symbol": symbol, "trend": closes}
     except Exception as e:
         return {"symbol": symbol, "trend": [], "error": str(e)}
@@ -502,9 +503,12 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         if len(valid_tickers) == 0:
             raise ValueError("No valid data returned from Yahoo Finance for the provided stocks.")
             
-        # Add warnings for failed tickers so the user knows they were excluded
+        # If any ticker completely failed, strictly halt the analysis to ensure 
+        # the correlation matrix matches the user's input 1:1.
         failed_after_retry = [t for t in mapped_tickers if t not in valid_tickers and (t + '.NS') not in valid_tickers]
-        
+        if failed_after_retry:
+            raise ValueError(f"Invalid Tickers: Could not fetch data for {', '.join(failed_after_retry)}. Please ensure all tickers are valid before proceeding.")
+
         # Filter data to only valid columns
         data = data[valid_tickers]
         
@@ -535,8 +539,6 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
             
         # 3. Dynamic High-Correlation Warnings
         warnings_array = []
-        if failed_after_retry:
-            warnings_array.append(f"Invalid Tickers: Could not fetch data for {', '.join(failed_after_retry)}. They might be misspelled, delisted, or use a different ticker symbol. They were excluded from the analysis.")
             
         high_correlation = False
         correlated_pairs = []

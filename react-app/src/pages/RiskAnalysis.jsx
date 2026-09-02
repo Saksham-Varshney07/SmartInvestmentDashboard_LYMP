@@ -181,7 +181,7 @@ Return ONLY a raw JSON array (no markdown code blocks, no intro/outro text) matc
   }
 ]
 CRITICAL RULES:
-1. The "ticker" field MUST be the exact, valid Yahoo Finance ticker symbol (e.g., "HDFCBANK.NS", "RELIANCE.NS", "AAPL", "MSFT"). NEVER put the company name in the "ticker" field.
+1. The "ticker" field MUST be the exact, valid Yahoo Finance ticker symbol (e.g., "HDFCBANK.NS", "RELIANCE.NS", "AAPL", "MSFT"). NEVER make up fake tickers. Only suggest real, actively traded companies from major indexes.
 2. If suggesting Indian stocks, you MUST append the ".NS" or ".BO" suffix to the ticker (e.g. "INFY.NS").
 3. The historical_trend MUST be an array of 6 numbers representing mock monthly stock prices for the last 6 months. DO NOT return anything except the JSON array.`;
 
@@ -217,10 +217,10 @@ CRITICAL RULES:
       
       if (!Array.isArray(parsed)) throw new Error('AI did not return a valid list.');
       
-      // Override mock trends with real market data
+      // Override mock trends with real market data and filter out hallucinations
       const withRealData = await Promise.all(parsed.map(async (card) => {
         try {
-          const res = await fetch(`http://127.0.0.1:8000/api/market-trend?symbol=${card.ticker}`);
+          const res = await fetch(`http://127.0.0.1:8000/api/market-trend?symbol=${encodeURIComponent(card.ticker)}`);
           if (res.ok) {
             const trendData = await res.json();
             if (trendData.trend && trendData.trend.length > 0) {
@@ -230,10 +230,17 @@ CRITICAL RULES:
         } catch (e) {
           console.error("Failed to fetch real trend for", card.ticker, e);
         }
-        return card; // fallback to LLM mock data if backend fetch fails
+        // If Yahoo Finance couldn't find real trend data, this is likely a hallucination. Drop it.
+        return null; 
       }));
       
-      setAiSuggestions(withRealData);
+      const validSuggestions = withRealData.filter(Boolean);
+      
+      if (validSuggestions.length === 0) {
+        throw new Error('The AI generated invalid or unrecognized tickers. Please try again.');
+      }
+      
+      setAiSuggestions(validSuggestions);
     } catch (err) {
       console.error(err);
       setAiError("Failed to parse AI suggestions. Please try again.");
@@ -558,13 +565,13 @@ CRITICAL RULES:
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Total Capital / Budget (₹)</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 dark:text-slate-500">₹</span>
-                  <input type="number" value={budget} onChange={e => setBudget(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2.5 pl-10 pr-4 font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                  <input type="number" value={budget} onChange={e => setBudget(e.target.value === '' ? '' : Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2.5 pl-10 pr-4 font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Investment Horizon (Years)</label>
-                <input type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2.5 px-4 font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                <input type="number" value={duration} onChange={e => setDuration(e.target.value === '' ? '' : Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2.5 px-4 font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
               </div>
 
               <div>
