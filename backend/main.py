@@ -14,6 +14,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 import collections
 import yfinance as yf
+import pandas as pd
 
 class TransactionRequest(BaseModel):
     user_id: int
@@ -159,11 +160,44 @@ def execute_pipeline(db: Session=Depends(get_db)):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 @app.get('/api/market-trend')
-def get_market_trend(symbol: str):
+def get_market_trend(symbol: str, timeframe: str = "6mo", interval: str = None):
     """
-    Fetches the 6-month closing price history for a given symbol for AI card mini-charts.
+    Fetches price history for a given symbol.
+    Supports dynamic timeframe (1d, 5d, 1mo, 3mo, 6mo, 1y, 5y, max)
+    and interval (e.g. 5m, 15m, 1h, 1d).
+    Returns both simple trend array (for legacy cards) and detailed points with dates/times.
     """
     try:
+        # Normalize timeframe & interval mapping
+        tf = timeframe.lower()
+        if not interval:
+            if tf in ['1d']:
+                interval = '5m'
+            elif tf in ['5d', '1w']:
+                tf = '5d'
+                interval = '15m'
+            elif tf in ['1mo', '1m']:
+                tf = '1mo'
+                interval = '1d'
+            elif tf in ['3mo', '3m']:
+                tf = '3mo'
+                interval = '1d'
+            elif tf in ['6mo', '6m']:
+                tf = '6mo'
+                interval = '1d'
+            elif tf in ['1y', '1yr']:
+                tf = '1y'
+                interval = '1d'
+            elif tf in ['5y', '5yr']:
+                tf = '5y'
+                interval = '1wk'
+            elif tf in ['max']:
+                tf = 'max'
+                interval = '1mo'
+            else:
+                tf = '6mo'
+                interval = '1d'
+
         # Map known outdated/alias tickers to correct Yahoo Finance tickers
         TICKER_MAP = {
             'TATAMOTORS.NS': 'TMCV.NS',
@@ -176,22 +210,205 @@ def get_market_trend(symbol: str):
         mapped_symbol = TICKER_MAP.get(symbol.upper().strip(), symbol.upper().strip())
         
         ticker = yf.Ticker(mapped_symbol)
-        hist = ticker.history(period="6mo")
+        hist = ticker.history(period=tf, interval=interval)
         
         if hist.empty:
-            # Fallback to appending .NS for Indian stocks just in case
             if not symbol.endswith('.NS') and not symbol.endswith('.BO'):
-                hist = yf.Ticker(symbol + ".NS").history(period="6mo")
+                hist = yf.Ticker(symbol + ".NS").history(period=tf, interval=interval)
         
         if hist.empty:
-            return {"symbol": symbol, "trend": []}
+            return {"symbol": symbol, "timeframe": tf, "trend": [], "points": []}
             
-        # Downsample slightly if it's too large, but 120 days is perfectly fine for Sparkline
-        # Drop NaN values to prevent "Out of range float values" JSON error
-        closes = [round(float(val), 2) for val in hist['Close'].dropna().tolist()]
-        return {"symbol": symbol, "trend": closes}
+        points = []
+        for index, row in hist.iterrows():
+            if pd.notna(row['Close']):
+                date_str = index.strftime('%Y-%m-%d %H:%M') if hasattr(index, 'strftime') else str(index)
+                points.append({
+                    "date": date_str,
+                    "close": round(float(row['Close']), 2),
+                    "open": round(float(row['Open']), 2) if 'Open' in row and pd.notna(row['Open']) else None,
+                    "high": round(float(row['High']), 2) if 'High' in row and pd.notna(row['High']) else None,
+                    "low": round(float(row['Low']), 2) if 'Low' in row and pd.notna(row['Low']) else None,
+                    "volume": int(row['Volume']) if 'Volume' in row and pd.notna(row['Volume']) else 0
+                })
+
+        closes = [p["close"] for p in points]
+        return {
+            "symbol": symbol,
+            "timeframe": tf,
+            "interval": interval,
+            "trend": closes,
+            "points": points
+        }
     except Exception as e:
-        return {"symbol": symbol, "trend": [], "error": str(e)}
+        return {"symbol": symbol, "trend": [], "points": [], "error": str(e)}
+
+# In-memory cached storage for top sector performers and screener metrics to guarantee instantaneous UI loads
+SECTOR_CACHE = {
+    "data": None,
+    "last_updated": 0
+}
+
+@app.get('/api/top-sectors')
+def get_top_sectors():
+    """
+    Member 1 Task 2 & Task 3:
+    Categorizes major stocks into sectors, calculates 1-year performance,
+    retrieves Screener-style fundamental ratios (P/E, Market Cap, 52W High/Low),
+    and returns the Top 2 performers for each sector.
+    """
+    import time
+    now = time.time()
+    # Cache for 10 minutes
+    if SECTOR_CACHE["data"] and (now - SECTOR_CACHE["last_updated"] < 600):
+        return SECTOR_CACHE["data"]
+
+    # Representative universe of leading Indian companies across sectors
+    UNIVERSE = [
+        # Technology
+        {"symbol": "TCS.NS", "name": "Tata Consultancy Services", "sector": "Technology"},
+        {"symbol": "INFY.NS", "name": "Infosys", "sector": "Technology"},
+        {"symbol": "HCLTECH.NS", "name": "HCL Technologies", "sector": "Technology"},
+        {"symbol": "WIPRO.NS", "name": "Wipro", "sector": "Technology"},
+
+        # Financial Services / Banking
+        {"symbol": "HDFCBANK.NS", "name": "HDFC Bank", "sector": "Financial Services"},
+        {"symbol": "ICICIBANK.NS", "name": "ICICI Bank", "sector": "Financial Services"},
+        {"symbol": "SBIN.NS", "name": "State Bank of India", "sector": "Financial Services"},
+        {"symbol": "KOTAKBANK.NS", "name": "Kotak Mahindra Bank", "sector": "Financial Services"},
+
+        # Energy & Utilities
+        {"symbol": "RELIANCE.NS", "name": "Reliance Industries", "sector": "Energy"},
+        {"symbol": "ONGC.NS", "name": "Oil & Natural Gas Corp", "sector": "Energy"},
+        {"symbol": "NTPC.NS", "name": "NTPC Ltd", "sector": "Energy"},
+        {"symbol": "POWERGRID.NS", "name": "Power Grid Corporation", "sector": "Energy"},
+
+        # Consumer Goods (FMCG)
+        {"symbol": "ITC.NS", "name": "ITC Ltd", "sector": "Consumer Goods"},
+        {"symbol": "HINDUNILVR.NS", "name": "Hindustan Unilever", "sector": "Consumer Goods"},
+        {"symbol": "NESTLEIND.NS", "name": "Nestle India", "sector": "Consumer Goods"},
+        {"symbol": "BRITANNIA.NS", "name": "Britannia Industries", "sector": "Consumer Goods"},
+
+        # Automobile
+        {"symbol": "TMCV.NS", "name": "Tata Motors Passenger", "sector": "Automobile"},
+        {"symbol": "MARUTI.NS", "name": "Maruti Suzuki", "sector": "Automobile"},
+        {"symbol": "M&M.NS", "name": "Mahindra & Mahindra", "sector": "Automobile"},
+        {"symbol": "BAJAJ-AUTO.NS", "name": "Bajaj Auto", "sector": "Automobile"},
+
+        # Healthcare & Pharma
+        {"symbol": "SUNPHARMA.NS", "name": "Sun Pharmaceutical", "sector": "Healthcare"},
+        {"symbol": "DRREDDY.NS", "name": "Dr. Reddy's Laboratories", "sector": "Healthcare"},
+        {"symbol": "CIPLA.NS", "name": "Cipla Ltd", "sector": "Healthcare"},
+        {"symbol": "DIVISLAB.NS", "name": "Divi's Laboratories", "sector": "Healthcare"}
+    ]
+
+    try:
+        symbols = [item["symbol"] for item in UNIVERSE]
+        # Download 1-year data in a single batch
+        batch_df = yf.download(symbols, period="1y", progress=False)['Close']
+        
+        enriched_stocks = []
+        for item in UNIVERSE:
+            sym = item["symbol"]
+            curr_price = None
+            yearly_return = 0.0
+
+            if sym in batch_df.columns:
+                series = batch_df[sym].dropna()
+                if len(series) > 1:
+                    curr_price = float(series.iloc[-1])
+                    first_price = float(series.iloc[0])
+                    yearly_return = round(((curr_price - first_price) / first_price) * 100, 2)
+
+            # Extract basic fundamentals for Screener support
+            pe_ratio = None
+            market_cap = None
+            high_52 = None
+            low_52 = None
+            try:
+                t = yf.Ticker(sym)
+                info = t.info or {}
+                pe_ratio = info.get('trailingPE') or info.get('forwardPE')
+                market_cap = info.get('marketCap')
+                high_52 = info.get('fiftyTwoWeekHigh')
+                low_52 = info.get('fiftyTwoWeekLow')
+                if curr_price is None:
+                    curr_price = info.get('regularMarketPrice') or info.get('currentPrice')
+            except Exception:
+                pass
+
+            enriched_stocks.append({
+                "symbol": sym,
+                "name": item["name"],
+                "sector": item["sector"],
+                "current_price": round(curr_price, 2) if curr_price else 0.0,
+                "yearly_return": yearly_return,
+                "pe_ratio": round(pe_ratio, 2) if pe_ratio else None,
+                "market_cap": market_cap,
+                "high_52w": round(high_52, 2) if high_52 else None,
+                "low_52w": round(low_52, 2) if low_52 else None,
+                # Risk flag heuristic aligned with dashboard thresholds
+                "risk_flag": "Low Risk" if yearly_return > 15 else ("High Risk" if yearly_return < -5 else "Moderate")
+            })
+
+        # Group by sector and select Top 2 performers by yearly return
+        from collections import defaultdict
+        grouped = defaultdict(list)
+        for s in enriched_stocks:
+            grouped[s["sector"]].append(s)
+
+        top_by_sector = {}
+        for sector, stock_list in grouped.items():
+            # Sort descending by 1-year return
+            sorted_stocks = sorted(stock_list, key=lambda x: x["yearly_return"], reverse=True)
+            top_by_sector[sector] = sorted_stocks[:2]
+
+        response_payload = {
+            "status": "success",
+            "sectors": top_by_sector,
+            "all_stocks": enriched_stocks,
+            "generated_at": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+        SECTOR_CACHE["data"] = response_payload
+        SECTOR_CACHE["last_updated"] = now
+        return response_payload
+
+    except Exception as e:
+        traceback.print_exc()
+        return {"status": "error", "message": str(e), "sectors": {}}
+
+@app.get('/api/screener-metrics')
+def get_screener_metrics(symbol: str):
+    """
+    Member 1 Task 3:
+    Dedicated Screener.in style endpoint fetching deep fundamental ratios for a company:
+    P/E, P/B, Market Cap, ROCE/ROE, Debt-to-Equity, Dividend Yield, and 52W range.
+    """
+    try:
+        t = yf.Ticker(symbol.upper().strip())
+        info = t.info or {}
+        
+        return {
+            "symbol": symbol.upper(),
+            "name": info.get("longName") or info.get("shortName") or symbol,
+            "sector": info.get("sector", "N/A"),
+            "industry": info.get("industry", "N/A"),
+            "current_price": info.get("currentPrice") or info.get("regularMarketPrice"),
+            "market_cap": info.get("marketCap"),
+            "pe_ratio": round(info.get("trailingPE"), 2) if info.get("trailingPE") else None,
+            "forward_pe": round(info.get("forwardPE"), 2) if info.get("forwardPE") else None,
+            "price_to_book": round(info.get("priceToBook"), 2) if info.get("priceToBook") else None,
+            "dividend_yield": round(info.get("dividendYield", 0) * 100, 2) if info.get("dividendYield") else None,
+            "roe": round(info.get("returnOnEquity", 0) * 100, 2) if info.get("returnOnEquity") else None,
+            "roce": round(info.get("returnOnAssets", 0) * 100, 2) if info.get("returnOnAssets") else None,
+            "debt_to_equity": round(info.get("debtToEquity"), 2) if info.get("debtToEquity") else None,
+            "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
+            "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
+            "profit_margins": round(info.get("profitMargins", 0) * 100, 2) if info.get("profitMargins") else None
+        }
+    except Exception as e:
+        return {"symbol": symbol, "error": str(e)}
 
 @app.post('/api/login')
 def login(req: LoginRequest, db: Session=Depends(get_db)):

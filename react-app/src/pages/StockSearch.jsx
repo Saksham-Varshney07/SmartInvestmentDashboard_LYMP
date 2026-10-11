@@ -12,6 +12,7 @@ export default function StockSearch() {
   const [fetchError, setFetchError] = useState(null);
   const [showReasoning, setShowReasoning] = useState(false);
   const [showBuyModal, setShowBuyModal] = useState(false);
+  const [intradayData, setIntradayData] = useState({});
   const { currentUser } = useContext(AuthContext);
 
   useEffect(() => {
@@ -35,6 +36,27 @@ export default function StockSearch() {
     };
     if (stockname) fetchData();
   }, [stockname]);
+
+  // Dynamic high-resolution fetch for Day-Trader views (1D & 1W)
+  useEffect(() => {
+    const fetchIntraday = async () => {
+      if ((timeRange === '1D' || timeRange === '1W') && stockname && !intradayData[timeRange]) {
+        try {
+          const tf = timeRange === '1D' ? '1d' : '5d';
+          const res = await fetch(`http://127.0.0.1:8000/api/market-trend?symbol=${encodeURIComponent(stockname)}&timeframe=${tf}`);
+          if (res.ok) {
+            const json = await res.json();
+            if (json.points && json.points.length > 0) {
+              setIntradayData(prev => ({ ...prev, [timeRange]: json.points }));
+            }
+          }
+        } catch (e) {
+          console.error('Error fetching intraday trend:', e);
+        }
+      }
+    };
+    fetchIntraday();
+  }, [timeRange, stockname, intradayData]);
 
   if (loading) {
     return (
@@ -81,6 +103,9 @@ export default function StockSearch() {
   const hist = data?.history || [];
   
   const filterHistory = (history, range) => {
+    if ((range === '1D' || range === '1W') && intradayData[range] && intradayData[range].length > 0) {
+      return intradayData[range];
+    }
     if (!history.length) return [];
     const latestDate = new Date(history[history.length - 1].date);
     
