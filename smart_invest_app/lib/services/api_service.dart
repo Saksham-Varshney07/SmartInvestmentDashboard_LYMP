@@ -378,10 +378,10 @@ Rules you MUST follow:
         Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer YOUR_API_KEY_HERE',
+          'Authorization': 'Bearer ${const String.fromEnvironment('OPENROUTER_API_KEY', defaultValue: 'YOUR_API_KEY_HERE')}',
         },
         body: jsonEncode({
-          'model': 'poolside/laguna-xs-2.1',
+          'model': 'poolside/laguna-xs-2.1:free',
           'messages': messages,
           'max_tokens': 1500,
         }),
