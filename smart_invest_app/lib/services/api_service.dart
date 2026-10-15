@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import '../models/asset_model.dart';
 
 class ApiService {
-  static String baseUrl = 'https://e1967cf77ae6d6.lhr.life';
+  static String baseUrl = 'https://f8388c3770c2ed.lhr.life';
 
   static final Map<String, String> _headers = {
     'User-Agent':
