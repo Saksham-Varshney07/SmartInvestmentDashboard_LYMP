@@ -41,9 +41,12 @@ export default function ModelComparisonView({
     });
     setModelResults(initialStatus);
 
-    // Concurrent live fetch to OpenRouter
-    await Promise.allSettled(
-      REAL_BENCHMARK_MODELS.map(async (model) => {
+    // Stagger live fetch to OpenRouter to respect free-tier concurrency limits
+    const promises = REAL_BENCHMARK_MODELS.map(async (model, idx) => {
+      if (idx > 0) {
+        await new Promise((resolve) => setTimeout(resolve, idx * 350));
+      }
+      try {
         const result = await querySingleModelOpenRouter(
           model,
           activeSymbol,
@@ -51,14 +54,23 @@ export default function ModelComparisonView({
           stockData,
           apiKey
         );
-
         setModelResults((prev) => ({
           ...prev,
           [model.id]: result
         }));
-      })
-    );
+      } catch (err) {
+        setModelResults((prev) => ({
+          ...prev,
+          [model.id]: {
+            ...model,
+            status: 'error',
+            error: err.message || 'Execution error'
+          }
+        }));
+      }
+    });
 
+    await Promise.allSettled(promises);
     setIsRunningAll(false);
   };
 
@@ -267,7 +279,9 @@ export default function ModelComparisonView({
                           ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
                           : model.stanceType === 'sell'
                             ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300 dark:border-rose-700'
-                            : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                            : model.stance === 'Answer'
+                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300 dark:border-blue-700'
+                              : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 dark:border-amber-700'
                       }`}>
                         {model.stance}
                       </span>
