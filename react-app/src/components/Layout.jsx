@@ -214,6 +214,7 @@ export default function Layout({ children }) {
               <Link id="nav-dashboard" className={getNavClass('/')} to="/">Dashboard</Link>
               <Link id="nav-riskanalysis" className={getNavClass('/riskanalysis')} to="/riskanalysis">Risk Analysis</Link>
               <Link id="nav-portfolio" className={getNavClass('/portfolio')} to="/portfolio">Portfolio</Link>
+              <Link id="nav-sectors" className={getNavClass('/sectors')} to="/sectors">Screener</Link>
               <Link id="nav-sipplanner" className={getNavClass('/sipplanner')} to="/sipplanner">SIP Planner</Link>
               <Link id="nav-assetexplorer" className={getNavClass('/assetexplorer')} to="/assetexplorer">Asset Explorer</Link>
             </nav>
@@ -301,6 +302,7 @@ export default function Layout({ children }) {
             location.pathname === '/' ? 'Dashboard' :
             location.pathname === '/riskanalysis' ? 'Risk Analysis Portfolio Simulator' :
             location.pathname === '/portfolio' ? 'Live Portfolio Tracking' :
+            (location.pathname === '/sectors' || location.pathname === '/screener') ? 'Sector Comparison & Fundamental Screener' :
             location.pathname === '/sipplanner' ? 'SIP Planner' :
             location.pathname === '/assetexplorer' ? 'Asset Explorer' :
             location.pathname.startsWith('/search/') ? 'Stock Search / Analysis' :

@@ -474,12 +474,24 @@ def add_transaction(req: TransactionRequest, db: Session=Depends(get_db)):
         # Use the requested portfolio name, or fallback to their first portfolio (e.g., custom named ones)
         portfolio = next((p for p in portfolios if p.portfolio_name == target_name), portfolios[0])
     if req.transaction_type.upper() == 'BUY':
-        # Use the stored procedure as requested
-        db.execute(
-            text("CALL purchase_portfolio_asset(:pid, :sym, :shares, :price)"),
-            {"pid": portfolio.id, "sym": req.symbol.upper(), "shares": req.shares, "price": req.price_at_purchase}
-        )
-        db.commit()
+        try:
+            # Use the stored procedure as requested on PostgreSQL
+            db.execute(
+                text("CALL purchase_portfolio_asset(:pid, :sym, :shares, :price)"),
+                {"pid": portfolio.id, "sym": req.symbol.upper(), "shares": req.shares, "price": req.price_at_purchase}
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            # Fallback for SQLite or when stored procedure is absent
+            asset = models.PortfolioAsset(
+                portfolio_id=portfolio.id,
+                ticker=req.symbol.upper(),
+                shares=req.shares,
+                purchase_price=req.price_at_purchase
+            )
+            db.add(asset)
+            db.commit()
     else:
         # For SELL, just add a negative share amount using SQLAlchemy
         asset = models.PortfolioAsset(
@@ -522,7 +534,7 @@ price_cache = {}
 def get_portfolio(user_id: int, type: str = 'real', db: Session=Depends(get_db)):
     portfolios = db.query(models.Portfolio).filter(models.Portfolio.user_id == user_id).all()
     if not portfolios:
-        return {'status': 'success', 'summary': {'total_investment': 0, 'portfolio_value': 0, 'total_profit': 0, 'total_profit_pct': 0}, 'assets': [], 'recent_activity': []}
+        return {'status': 'success', 'summary': {'total_investment': 0, 'portfolio_value': 0, 'total_profit': 0, 'total_profit_pct': 0, 'xirr': 0.0}, 'assets': [], 'recent_activity': []}
         
     target_name = 'Real Portfolio' if type == 'real' else 'Sandbox Portfolio'
     portfolio = next((p for p in portfolios if p.portfolio_name == target_name), portfolios[0])
@@ -629,13 +641,29 @@ def get_portfolio(user_id: int, type: str = 'real', db: Session=Depends(get_db))
             'date': tx.purchase_date
         })
 
+    # Calculate XIRR
+    try:
+        from xirr_utils import calculate_xirr
+        cash_flows = []
+        for tx in transactions:
+            tx_dt = tx.purchase_date if tx.purchase_date else datetime.now()
+            amt = -float(abs(tx.shares) * tx.purchase_price) if tx.shares > 0 else float(abs(tx.shares) * tx.purchase_price)
+            cash_flows.append((tx_dt, amt))
+        if current_portfolio_value > 0:
+            cash_flows.append((datetime.now(), float(current_portfolio_value)))
+        portfolio_xirr = calculate_xirr(cash_flows)
+    except Exception as e:
+        print(f"XIRR calculation note: {e}")
+        portfolio_xirr = 0.0
+
     return {
         'status': 'success',
         'summary': {
             'total_investment': total_investment,
             'portfolio_value': current_portfolio_value,
             'total_profit': total_profit,
-            'total_profit_pct': total_profit_pct
+            'total_profit_pct': total_profit_pct,
+            'xirr': portfolio_xirr
         },
         'assets': assets,
         'recent_activity': recent_activity

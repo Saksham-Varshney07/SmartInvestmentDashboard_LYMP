@@ -14,6 +14,8 @@ import Layout from './components/Layout';
 import Onboarding from './components/Onboarding';
 import ScrollToTop from './components/ScrollToTop';
 
+import SectorComparison from './pages/SectorComparison';
+
 const PageTransition = ({ children }) => (
   <motion.div
     initial={{ opacity: 0, y: 15 }}
@@ -38,6 +40,8 @@ const AnimatedRoutes = () => {
         <Route path="/riskanalysis" element={<PageTransition><RiskAnalysis /></PageTransition>} />
         <Route path="/portfolio" element={<PageTransition><Portfolio /></PageTransition>} />
         <Route path="/assetexplorer" element={<PageTransition><AssetExplorer /></PageTransition>} />
+        <Route path="/sectors" element={<PageTransition><SectorComparison /></PageTransition>} />
+        <Route path="/screener" element={<PageTransition><SectorComparison /></PageTransition>} />
         <Route path="/:stockname" element={<PageTransition><StockSearch /></PageTransition>} />
       </Routes>
     </AnimatePresence>

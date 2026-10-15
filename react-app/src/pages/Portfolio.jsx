@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import Shepherd from 'shepherd.js';
 import { AuthContext } from '../context/AuthContext';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { calculateClientXirr } from '../utils/finance';
 
 export default function Portfolio() {
   const { currentUser } = useContext(AuthContext);
@@ -193,11 +194,34 @@ export default function Portfolio() {
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val || 0);
 
+  const computedXirr = React.useMemo(() => {
+    if (portfolio.summary?.xirr !== undefined && portfolio.summary?.xirr !== null && portfolio.summary.xirr !== 0) {
+      return portfolio.summary.xirr;
+    }
+    // Client-side fallback from assets history + current value
+    let flows = [];
+    (portfolio.assets || []).forEach(asset => {
+      (asset.history || []).forEach(tx => {
+        flows.push({
+          date: tx.date,
+          amount: tx.type === 'BUY' ? -(tx.shares * tx.price) : +(tx.shares * tx.price)
+        });
+      });
+    });
+    if (portfolio.summary?.portfolio_value > 0) {
+      flows.push({
+        date: new Date(),
+        amount: portfolio.summary.portfolio_value
+      });
+    }
+    return calculateClientXirr(flows);
+  }, [portfolio.summary, portfolio.assets]);
+
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <div className="flex items-center gap-4 mb-2">
+          <div className="flex flex-wrap items-center gap-3 mb-2">
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Your Portfolio</h1>
             <div className="flex bg-slate-200 dark:bg-slate-800 rounded-lg p-1">
               <button 
@@ -213,9 +237,17 @@ export default function Portfolio() {
                 Sandbox
               </button>
             </div>
+
+            {/* Sandbox Cumulative XIRR Badge */}
+            {portfolioType === 'sandbox' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 shadow-sm animate-[fadeIn_0.2s_ease-in-out]">
+                <span className="material-symbols-outlined text-[15px]">query_stats</span>
+                Cumulative XIRR: {computedXirr > 0 ? '+' : ''}{computedXirr}% p.a.
+              </span>
+            )}
           </div>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
-            {portfolioType === 'real' ? 'Manage your holdings and track performance.' : 'Simulate investments and test AI blueprints risk-free.'}
+            {portfolioType === 'real' ? 'Manage your holdings and track performance.' : 'Simulate investments, test AI blueprints, and benchmark real-time cash-flow returns.'}
           </p>
         </div>
         <button 
@@ -228,6 +260,120 @@ export default function Portfolio() {
         >
           <span className="material-symbols-outlined text-sm">add</span> Add Transaction
         </button>
+      </div>
+
+      {/* Portfolio Summary Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        {/* Total Invested */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+            <span>Total Invested</span>
+            <span className="material-symbols-outlined text-base text-slate-400">payments</span>
+          </div>
+          <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            {formatCurrency(portfolio.summary?.total_investment)}
+          </div>
+          <div className="mt-2 text-xs text-slate-400">
+            {portfolioType === 'sandbox' ? 'Simulated capital deployed' : 'Real capital committed'}
+          </div>
+        </div>
+
+        {/* Current Portfolio Value */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+            <span>Live Portfolio Value</span>
+            <span className="material-symbols-outlined text-base text-blue-500">account_balance_wallet</span>
+          </div>
+          <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            {formatCurrency(portfolio.summary?.portfolio_value)}
+          </div>
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Real-time market valuation</span>
+          </div>
+        </div>
+
+        {/* Total Profit / Loss */}
+        <div className={`bg-white dark:bg-slate-900 p-5 rounded-xl border shadow-sm transition-colors ${
+          (portfolio.summary?.total_profit || 0) >= 0 
+            ? 'border-emerald-200 dark:border-emerald-800/80' 
+            : 'border-rose-200 dark:border-rose-800/80'
+        }`}>
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+            <span>Total Profit / Loss</span>
+            <span className={`material-symbols-outlined text-base ${
+              (portfolio.summary?.total_profit || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'
+            }`}>
+              {(portfolio.summary?.total_profit || 0) >= 0 ? 'trending_up' : 'trending_down'}
+            </span>
+          </div>
+          <div className={`text-2xl font-bold tracking-tight ${
+            (portfolio.summary?.total_profit || 0) >= 0 
+              ? 'text-emerald-600 dark:text-emerald-400' 
+              : 'text-rose-600 dark:text-rose-400'
+          }`}>
+            {(portfolio.summary?.total_profit || 0) >= 0 ? '+' : ''}{formatCurrency(portfolio.summary?.total_profit)}
+          </div>
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+              (portfolio.summary?.total_profit || 0) >= 0
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+            }`}>
+              {(portfolio.summary?.total_profit_pct || 0) >= 0 ? '+' : ''}
+              {(portfolio.summary?.total_profit_pct || 0).toFixed(2)}% Absolute
+            </span>
+          </div>
+        </div>
+
+        {/* Cumulative XIRR % Card */}
+        <div className={`p-5 rounded-xl border shadow-sm transition-all relative overflow-hidden ${
+          portfolioType === 'sandbox'
+            ? 'bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/50 dark:from-emerald-950/40 dark:via-slate-900 dark:to-teal-950/30 border-emerald-300 dark:border-emerald-700'
+            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+        }`}>
+          {portfolioType === 'sandbox' && (
+            <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-bl-lg uppercase tracking-wider shadow-sm">
+              Sandbox XIRR
+            </div>
+          )}
+          <div className="flex items-center justify-between text-slate-600 dark:text-slate-300 text-xs font-semibold uppercase tracking-wider mb-2">
+            <span className="flex items-center gap-1">
+              Cumulative XIRR
+              <span 
+                className="material-symbols-outlined text-xs text-slate-400 cursor-help"
+                title="Extended Internal Rate of Return (XIRR) measures the true annualized return by weighting the exact timing of all investment cash inflows and outflows."
+              >
+                info
+              </span>
+            </span>
+            <span className="material-symbols-outlined text-base text-emerald-600 dark:text-emerald-400">
+              query_stats
+            </span>
+          </div>
+          
+          <div className="flex items-baseline gap-2">
+            <span className={`text-2xl font-black tracking-tight ${
+              computedXirr >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+            }`}>
+              {computedXirr > 0 ? '+' : ''}{computedXirr}%
+            </span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">p.a.</span>
+          </div>
+
+          <div className="mt-2 flex items-center justify-between">
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              Annualized return
+            </span>
+            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100/70 dark:bg-emerald-900/50 px-2 py-0.5 rounded-md">
+              Cash-flow weighted
+            </span>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
