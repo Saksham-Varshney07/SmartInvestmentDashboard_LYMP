@@ -281,30 +281,96 @@ CRITICAL RULES:
       sessionStorage.setItem('risk_analysisResult', JSON.stringify(analysisResult));
       
       // Push live page data to the AI Context
-      let aiData = `Current Portfolio Stocks: ${stocks.join(', ')}\n`;
-      aiData += `Budget: ₹${budget}, Risk Profile: ${riskProfile}, Horizon: ${duration} years\n`;
+      let aiData = `SCREEN: Risk Analysis Simulator (Step 3: Optimized Blueprints & Correlation Matrix)\n`;
+      aiData += `Selected Stocks: ${stocks.join(', ')}\n`;
+      aiData += `Target Budget: ₹${budget.toLocaleString('en-IN')} | Risk Profile: ${riskProfile} | Horizon: ${duration} years\n`;
       
+      // Parse correlation matrix accurately regardless of data shape
       if (analysisResult.correlation_matrix) {
-        aiData += `\nCORRELATION MATRIX (Red means High Correlation/Risk, Green means Low):\n`;
+        aiData += `\nLIVE ASSET CORRELATION MATRIX (Values range from -1.0 to +1.0):\n`;
         const matrix = analysisResult.correlation_matrix;
-        Object.keys(matrix).forEach(row => {
-          Object.keys(matrix[row]).forEach(col => {
-             if (row !== col) {
-               const val = matrix[row][col];
-               if (typeof val === 'number' && !isNaN(val)) {
-                 const color = val > 0.7 ? "RED (Danger/High Risk)" : val < 0.3 ? "GREEN (Safe/Low Risk)" : "YELLOW (Moderate)";
-                 aiData += `- Correlation between ${row} and ${col} is ${val.toFixed(2)} (${color})\n`;
-               } else {
-                 aiData += `- Correlation between ${row} and ${col} is N/A\n`;
-               }
-             }
+        const seenPairs = new Set();
+
+        if (Array.isArray(matrix)) {
+          // ApexCharts format: [{ name: 'TCS.NS', data: [{ x: 'INFY.NS', y: 0.78 }] }]
+          matrix.forEach((rowObj, rIdx) => {
+            const stockA = rowObj.name || (stocks[rIdx] || `Stock ${rIdx}`);
+            if (Array.isArray(rowObj.data)) {
+              rowObj.data.forEach((item, cIdx) => {
+                let stockB = null;
+                let val = null;
+                if (item && typeof item === 'object') {
+                  stockB = item.x || (stocks[cIdx] || null);
+                  val = typeof item.y === 'number' ? item.y : null;
+                } else if (typeof item === 'number') {
+                  stockB = matrix[cIdx]?.name || stocks[cIdx] || null;
+                  val = item;
+                }
+
+                if (stockA && stockB && stockA !== stockB && val !== null && !isNaN(val)) {
+                  const pairKey = [stockA, stockB].sort().join(' <-> ');
+                  if (!seenPairs.has(pairKey)) {
+                    seenPairs.add(pairKey);
+                    const tag = val > 0.7 ? "HIGH CORRELATION (Risky - moves together / Red block on screen)" :
+                                val < 0.3 ? "LOW CORRELATION (Safe - healthy diversification / Green block on screen)" :
+                                "MODERATE CORRELATION (Yellow block on screen)";
+                    aiData += `- Correlation between ${stockA} and ${stockB}: ${val.toFixed(2)} [${tag}]\n`;
+                  }
+                }
+              });
+            }
           });
+        } else if (typeof matrix === 'object') {
+          // Plain 2D map: { "TCS.NS": { "INFY.NS": 0.78 } }
+          Object.keys(matrix).forEach(row => {
+            if (typeof matrix[row] === 'object' && matrix[row] !== null) {
+              Object.keys(matrix[row]).forEach(col => {
+                if (row !== col) {
+                  const pairKey = [row, col].sort().join(' <-> ');
+                  const val = matrix[row][col];
+                  if (!seenPairs.has(pairKey) && typeof val === 'number' && !isNaN(val)) {
+                    seenPairs.add(pairKey);
+                    const tag = val > 0.7 ? "HIGH CORRELATION (Risky / Red)" :
+                                val < 0.3 ? "LOW CORRELATION (Safe / Green)" :
+                                "MODERATE CORRELATION (Yellow)";
+                    aiData += `- Correlation between ${row} and ${col}: ${val.toFixed(2)} [${tag}]\n`;
+                  }
+                }
+              });
+            }
+          });
+        }
+      }
+
+      // Add Sector Breakdown
+      if (Array.isArray(analysisResult.sector_breakdown) && analysisResult.sector_breakdown.length > 0) {
+        aiData += `\nSECTOR EXPOSURE BREAKDOWN:\n`;
+        analysisResult.sector_breakdown.forEach(s => {
+          aiData += `- ${s.name}: ${s.percentage}%\n`;
         });
       }
-      if (analysisResult.risk_warnings && analysisResult.risk_warnings.length > 0) {
-        aiData += `\nRISK WARNINGS FIRED ON SCREEN:\n`;
-        analysisResult.risk_warnings.forEach(w => aiData += `- ${w.title}: ${w.message}\n`);
+
+      // Add Risk Warnings
+      const warnings = analysisResult.ai_warnings || analysisResult.risk_warnings || [];
+      if (warnings.length > 0) {
+        aiData += `\nACTIVE RISK WARNINGS FROM SYSTEM:\n`;
+        warnings.forEach(w => {
+          const msg = typeof w === 'string' ? w : `${w.title || ''}: ${w.message || ''}`;
+          aiData += `- ${msg}\n`;
+        });
       }
+
+      // Add Proposed Allocations (Blueprints)
+      if (analysisResult.portfolios) {
+        aiData += `\nPROPOSED BLUEPRINT ALLOCATIONS (Target allocations simulated for ₹${budget.toLocaleString('en-IN')} budget):\n`;
+        Object.entries(analysisResult.portfolios).forEach(([key, p]) => {
+          if (p && p.allocations && p.allocations.length > 0) {
+            const summary = p.allocations.map(a => `${a.name}: ${a.percentage}% (₹${a.amount})`).join(', ');
+            aiData += `- ${p.name} (Projected Return: ${p.projected_return_pa}% p.a.): ${summary}\n`;
+          }
+        });
+      }
+
       setAiPageData(aiData);
     } else {
       sessionStorage.removeItem('risk_analysisResult');

@@ -15,25 +15,42 @@ const generateSmartFallbackAnswer = (symbol, chatHistory, stockData, pageContext
   else if (query.includes('dashboard')) {
     answer = "The Dashboard is your main financial overview. It gives you a 360-degree view of your net worth, total investments, real-time market indices (like NIFTY 50 & S&P 500), asset allocation charts, and recent activity.";
   }
-  // 2. Risk / Risk analysis questions
-  else if (query.includes('risk')) {
-    answer = "Risk Analysis evaluates your portfolio's volatility, sector concentration, and drawdown risks. It helps you simulate market conditions, test sandbox blueprints, and balance your risk profile.";
+  // 2. Correlation Matrix / Diversification questions
+  else if (query.includes('correlation') || query.includes('matrix')) {
+    if (livePageData && (livePageData.includes('CORRELATION MATRIX') || livePageData.includes('Correlation between'))) {
+      const lines = livePageData.split('\n').filter(l => l.includes('Correlation between') || l.includes('vs'));
+      if (lines.length > 0) {
+        answer = `Here is the correlation breakdown for your selected stocks:\n\n${lines.slice(0, 5).join('\n')}\n\n• Green (< 0.3): Move independently, ideal for risk hedging.\n• Red (> 0.7): Move in lockstep, increasing vulnerability to sector pullbacks.`;
+      } else {
+        answer = "The Asset Correlation Matrix measures how your selected stocks move relative to each other on a scale of -1.0 to +1.0:\n\n• High (>0.7 / Red): Stocks move together in the same direction.\n• Low (<0.3 / Green): Stocks move independently, providing strong diversification.\n• Moderate (0.3 - 0.7 / Yellow): Moderate co-movement.";
+      }
+    } else {
+      answer = "The Asset Correlation Matrix measures the statistical relationship between your chosen holdings on a scale of -1.0 to +1.0:\n\n• High Correlation (+0.7 to +1.0): Assets move in lockstep. Holding too many highly correlated stocks increases vulnerability during sector pullbacks.\n• Low / Moderate Correlation (0.0 to +0.4): Healthy diversification where different assets react independently to macro news.\n• Negative Correlation (-1.0 to 0.0): Strong hedge protection where gains in one asset offset drops in another.\n\nTip: Balance high-beta growth stocks with defensive sector leaders or fixed income to maintain an optimal Sharpe ratio.";
+    }
   }
-  // 3. Portfolio / Sandbox questions
+  // 3. Risk / Volatility analysis questions
+  else if (query.includes('risk') || query.includes('volatility') || query.includes('var') || query.includes('sharpe')) {
+    answer = "Risk Analysis evaluates your portfolio's volatility, sector concentration, and drawdown risks. It computes Value-at-Risk (VaR), Sharpe Ratio, and helps you simulate market stress conditions to rebalance your allocation.";
+  }
+  // 4. XIRR / Returns questions
+  else if (query.includes('xirr') || query.includes('cagr') || query.includes('compounding')) {
+    answer = "Cumulative XIRR (Extended Internal Rate of Return) calculates your annualized returns while factoring in the exact dates of multiple buys, sells, and dividends. Unlike simple percentage return, XIRR gives an accurate measure of real compounding performance on staggered capital deployments.";
+  }
+  // 5. Portfolio / Sandbox questions
   else if (query.includes('portfolio') || query.includes('sandbox')) {
     answer = "The Portfolio view tracks your holdings and real transactions. You can switch between 'Real Portfolio' and 'Sandbox Portfolio' to test trading strategies without risking real capital.";
   }
-  // 4. SIP / Planner questions
+  // 6. SIP / Planner questions
   else if (query.includes('sip') || query.includes('planner') || query.includes('calculate')) {
     answer = "The SIP Planner calculates long-term compounding growth on monthly systematic investments. It shows your target corpus, total invested amount, and estimated wealth gains over 1 to 30 years.";
   }
-  // 5. Asset / Explorer / Search / Screener questions
+  // 7. Asset / Explorer / Search / Screener questions
   else if (query.includes('asset') || query.includes('explorer') || query.includes('search') || query.includes('screener') || query.includes('sector')) {
     answer = "The Screener & Asset Explorer lets you compare sector leaders, analyze P/E multiples, 52-week channels, and inspect quantitative ML risk tags.";
   }
-  // 6. Greetings / Intro (use word boundary regex to avoid matching substrings like 'which')
+  // 8. Greetings / Intro
   else if (/\b(hello|hi|hey|who are you|help|greetings)\b/i.test(query)) {
-    answer = "Hello! I am AInvestor, your AI financial assistant. Ask me anything about your stock holdings, risk levels, portfolio strategies, or how to use features in Smart Invest 360!";
+    answer = "Hello! I am AInvestor, your AI financial assistant. Ask me anything about your stock holdings, correlation matrix, risk levels, portfolio strategies, or features in Smart Invest 360!";
   }
   // 7. Stock-specific questions (dynamic and intent-aware)
   else if (symbol || stockData) {
@@ -113,37 +130,43 @@ export const askAiChat = async (symbol, chatHistory, stockData, pageContext = ""
         const currency = stockData.currency || (symbol?.endsWith('.NS') ? '₹' : '$');
         const high = stockData.day_high || (price * 1.01);
         const low = stockData.day_low || (price * 0.99);
-        stockContext = `CURRENT REAL-TIME DATA FOR ${symbol}: Price is ${currency}${price}, Daily Change is ${change.toFixed(2)}%, Day High ${currency}${high.toFixed(2)}, Day Low ${currency}${low.toFixed(2)}. Use this exact real-time data to answer the user and give your clear opinion. `;
+        stockContext = `CURRENT DATA FOR ${symbol}: Price ${currency}${price}, Change ${change.toFixed(2)}%, High ${currency}${high.toFixed(2)}, Low ${currency}${low.toFixed(2)}. `;
       }
 
-      const contextStr = pageContext ? `The user is currently on the following page in the app: ${pageContext}. Tailor your advice and answers to this context.` : "";
-      const liveDataStr = livePageData ? `\n\nCRITICAL LIVE PAGE DATA (This is what the user is currently looking at on their screen, use this to answer their questions accurately):\n${livePageData}\n\n` : "";
-      const symbolStr = symbol ? `The user is asking about the stock ${symbol}.` : "";
+      const contextStr = pageContext ? `Screen Context: ${pageContext}.\n` : "";
+      const symbolStr = symbol ? `Stock: ${symbol}.\n` : "";
+      const liveDataHeader = livePageData 
+        ? `\n--- LIVE METRICS FROM USER'S CURRENT SCREEN ---\n${livePageData}\n----------------------------------------------\nIMPORTANT: Use the specific numbers, stock pairs, and blueprint allocations in the screen data above to answer the user's question directly. Do NOT assume holdings or allocations are 0.00% if simulated blueprint data is provided.\n`
+        : "";
 
-      const messages = [
-        {
-          role: 'system',
-          content: `You are an incredibly bold and psychic stock advisor in a web app. ${contextStr} ${symbolStr} ${stockContext} ${liveDataStr}
-Rules you MUST follow:
-1. Use very simple, easy-to-understand language. No jargon.
-2. Give direct, straightforward answers. If a stock looks good, say "Yes, this is a good time to invest." If not, say "No, it might be better to wait."
-3. BE EXTREMELY CONFIDENT. NEVER say "it's impossible to predict" or "I cannot predict the future." You MUST make explicit predictions (e.g., predicting the price in 1 month) based on the data provided. Answer absolutely any question asked without holding anything back.
-4. Keep answers short - max 3-4 sentences.
-5. ALWAYS end every single response with exactly this line on a new line: "⚠️ Invest at your own risk."`
-        },
-        ...chatHistory
-      ];
+      const promptDirective = `You are AInvestor, an expert AI financial advisor in Smart Invest 360.
+${contextStr}${symbolStr}${stockContext}${liveDataHeader}
+Answer the user's question clearly, informatively, and directly in 2-4 sentences using the live data on screen.
+Always end with: ⚠️ Invest at your own risk.`;
 
-      // Robust candidate models chain to avoid single-model failures
+      // Transform chat history into universally compatible messages format (user role instruction to avoid 400 system rejections)
+      const messages = chatHistory.map((m, idx) => {
+        if (idx === chatHistory.length - 1 && m.role === 'user') {
+          return {
+            role: 'user',
+            content: `${promptDirective}\n\nUser Question: ${m.content}`
+          };
+        }
+        return m;
+      });
+
+      // Responsive free models on OpenRouter
       const candidateModels = [
         'poolside/laguna-xs-2.1:free',
-        'nvidia/nemotron-3.5-lightning:free',
-        'google/gemma-4-26b-a4b-it:free',
-        'thinkingmachines/inkling:free'
+        'poolside/laguna-s-2.1:free',
+        'nvidia/nemotron-3.5-lightning:free'
       ];
 
       for (const modelId of candidateModels) {
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000); // 6-second strict timeout per model
+
           const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -155,9 +178,12 @@ Rules you MUST follow:
             body: JSON.stringify({
               model: modelId,
               messages: messages,
-              max_tokens: 600,
+              max_tokens: 500,
             }),
+            signal: controller.signal
           });
+
+          clearTimeout(timeoutId);
 
           if (response.ok) {
             const data = await response.json();
@@ -168,7 +194,7 @@ Rules you MUST follow:
             }
           }
         } catch (callErr) {
-          console.warn(`Model ${modelId} failed, trying next model in chain:`, callErr);
+          console.warn(`Model ${modelId} timed out or failed, checking next model:`, callErr.name || callErr.message);
         }
       }
     }

@@ -11,22 +11,79 @@ export default function ModelComparisonView({
   onClose,
   onSwitchToChat
 }) {
-  const activeSymbol = symbol || 'MUTHOOTFIN.NS';
-  const [customPrompt, setCustomPrompt] = useState(
-    `What is your equity investment rating, target outlook, and valuation analysis on ${activeSymbol}?`
-  );
-  const [modelResults, setModelResults] = useState({});
+  const activeSymbol = symbol || '';
+  const CACHE_KEY = `ai_comparison_cache_${symbol || 'global'}`;
+
+  const [customPrompt, setCustomPrompt] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(CACHE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.customPrompt || parsed.lastExecutedPrompt || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+
+  const [lastExecutedPrompt, setLastExecutedPrompt] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(CACHE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.lastExecutedPrompt || '';
+      }
+    } catch (e) {}
+    return '';
+  });
+
+  const [hasRunQuery, setHasRunQuery] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(CACHE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Boolean(parsed.hasRunQuery && parsed.modelResults && Object.keys(parsed.modelResults).length > 0);
+      }
+    } catch (e) {}
+    return false;
+  });
+
+  const [modelResults, setModelResults] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(CACHE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.modelResults || {};
+      }
+    } catch (e) {}
+    return {};
+  });
+
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'bullish', 'cautious'
 
   const apiKey = getActiveApiKey();
 
+  // Save to sessionStorage whenever comparison state updates
+  useEffect(() => {
+    if (hasRunQuery && Object.keys(modelResults).length > 0) {
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+        customPrompt,
+        lastExecutedPrompt,
+        hasRunQuery,
+        modelResults
+      }));
+    }
+  }, [CACHE_KEY, customPrompt, lastExecutedPrompt, hasRunQuery, modelResults]);
+
   // Run live OpenRouter requests across all benchmark models
   const executeRealMultiModelCalls = async (promptToRun) => {
-    if (!apiKey) {
+    const query = (promptToRun || '').trim();
+    if (!apiKey || !query) {
       return;
     }
 
+    setHasRunQuery(true);
+    setLastExecutedPrompt(query);
     setIsRunningAll(true);
     const initialStatus = {};
     REAL_BENCHMARK_MODELS.forEach((m) => {
@@ -50,7 +107,7 @@ export default function ModelComparisonView({
         const result = await querySingleModelOpenRouter(
           model,
           activeSymbol,
-          promptToRun,
+          query,
           stockData,
           apiKey
         );
@@ -74,10 +131,6 @@ export default function ModelComparisonView({
     setIsRunningAll(false);
   };
 
-  useEffect(() => {
-    executeRealMultiModelCalls(customPrompt);
-  }, [activeSymbol]);
-
   const handlePromptSubmit = (e) => {
     e.preventDefault();
     if (!customPrompt.trim() || isRunningAll) return;
@@ -99,6 +152,10 @@ export default function ModelComparisonView({
 
   const isLightModal = isPageDark;
 
+  const promptPlaceholder = activeSymbol
+    ? `Ask about ${activeSymbol} (e.g. "Is it a good buy right now?", "Valuation outlook")...`
+    : "Type any investment question or stock to compare all models...";
+
   return (
     <div className="flex flex-col h-full select-none">
       {/* Top Consensus Summary Bar */}
@@ -116,14 +173,28 @@ export default function ModelComparisonView({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${
-              consensusPercentage >= 50
-                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
-                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${isRunningAll ? 'bg-blue-500 animate-ping' : 'bg-emerald-500'}`} />
-              {isRunningAll ? 'Querying OpenRouter...' : `${consensusPercentage}% Bullish Consensus`}
-            </span>
+            {isRunningAll ? (
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+                Querying Models...
+              </span>
+            ) : !hasRunQuery ? (
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${
+                isLightModal ? 'bg-slate-200 text-slate-700' : 'bg-slate-700 text-slate-300'
+              }`}>
+                <span className="w-2 h-2 rounded-full bg-slate-400" />
+                Ready for Prompt
+              </span>
+            ) : (
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${
+                consensusPercentage >= 50
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
+                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300'
+              }`}>
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                {consensusPercentage}% Bullish Consensus
+              </span>
+            )}
           </div>
         </div>
 
@@ -133,7 +204,7 @@ export default function ModelComparisonView({
             type="text"
             value={customPrompt}
             onChange={(e) => setCustomPrompt(e.target.value)}
-            placeholder="Type custom prompt for all models..."
+            placeholder={promptPlaceholder}
             className={`flex-1 rounded-lg px-3 py-1.5 text-xs outline-none border transition-colors ${
               isLightModal
                 ? 'bg-white border-slate-300 text-slate-800 focus:border-blue-500'
@@ -228,102 +299,145 @@ export default function ModelComparisonView({
           </div>
         )}
 
-        <div className={isExpanded ? 'grid grid-cols-1 md:grid-cols-2 gap-3.5' : 'space-y-3.5'}>
-          <AnimatePresence>
-            {filteredResults.map((model, idx) => (
-              <motion.div
-                key={model.id}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: idx * 0.05 }}
-                className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all ${
-                  isLightModal
-                    ? 'bg-white border-slate-200 shadow-sm hover:border-blue-400'
-                    : 'bg-slate-800/90 border-slate-700/80 shadow-md hover:border-slate-500'
-                }`}
-              >
-                {/* Header */}
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-7 h-7 rounded-lg ${model.avatarColor || 'bg-blue-600'} text-white flex items-center justify-center font-bold text-xs shadow-sm shrink-0`}>
-                        {model.name ? model.name[0] : 'AI'}
+        {!hasRunQuery && !isRunningAll ? (
+          <div className="flex flex-col items-center justify-center py-10 px-4 text-center my-auto">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-3 shadow-inner ${
+              isLightModal ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-blue-950/50 text-blue-400 border border-blue-800/60'
+            }`}>
+              <span className="material-symbols-outlined text-3xl">psychology</span>
+            </div>
+            <h4 className={`text-sm font-bold mb-1.5 ${isLightModal ? 'text-slate-800' : 'text-white'}`}>
+              Compare 4 AI Models Concurrently
+            </h4>
+            <p className={`text-xs max-w-md leading-relaxed mb-5 ${isLightModal ? 'text-slate-500' : 'text-slate-400'}`}>
+              Type your question above or choose a suggested prompt below to query 4 distinct benchmark LLMs simultaneously. No tokens are consumed until you click <b>Compare Live</b>.
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 max-w-lg">
+              {(activeSymbol ? [
+                `What is your rating and target outlook on ${activeSymbol}?`,
+                `Should I buy or wait on ${activeSymbol}?`,
+                `What are the biggest downside risks for ${activeSymbol}?`
+              ] : [
+                "What is the quantitative outlook for NIFTY 50?",
+                "Which sectors are safest during market volatility?",
+                "How should I diversify a ₹1,00,000 portfolio?"
+              ]).map((promptChip, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setCustomPrompt(promptChip);
+                    executeRealMultiModelCalls(promptChip);
+                  }}
+                  className={`text-xs px-3 py-2 rounded-xl border text-left transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.02] ${
+                    isLightModal
+                      ? 'bg-white border-slate-200 text-slate-700 hover:border-blue-500 hover:text-blue-600'
+                      : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:border-blue-500 hover:text-white'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[14px] text-blue-500">bolt</span>
+                  <span>{promptChip}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className={isExpanded ? 'grid grid-cols-1 md:grid-cols-2 gap-3.5' : 'space-y-3.5'}>
+            <AnimatePresence>
+              {filteredResults.map((model, idx) => (
+                <motion.div
+                  key={model.id}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: idx * 0.05 }}
+                  className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all ${
+                    isLightModal
+                      ? 'bg-white border-slate-200 shadow-sm hover:border-blue-400'
+                      : 'bg-slate-800/90 border-slate-700/80 shadow-md hover:border-slate-500'
+                  }`}
+                >
+                  {/* Header */}
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-7 h-7 rounded-lg ${model.avatarColor || 'bg-blue-600'} text-white flex items-center justify-center font-bold text-xs shadow-sm shrink-0`}>
+                          {model.name ? model.name[0] : 'AI'}
+                        </div>
+                        <div>
+                          <h5 className={`font-bold text-xs flex items-center gap-1.5 ${
+                            isLightModal ? 'text-slate-900' : 'text-white'
+                          }`}>
+                            {model.name}
+                            {model.status === 'success' && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Live API Response" />
+                            )}
+                          </h5>
+                          <span className={`text-[10px] font-mono ${isLightModal ? 'text-slate-400' : 'text-slate-400'}`}>
+                            {model.modelUsed || model.id} {model.latency ? `• ${model.latency}` : ''}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <h5 className={`font-bold text-xs flex items-center gap-1.5 ${
-                          isLightModal ? 'text-slate-900' : 'text-white'
-                        }`}>
-                          {model.name}
-                          {model.status === 'success' && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Live API Response" />
-                          )}
-                        </h5>
-                        <span className={`text-[10px] font-mono ${isLightModal ? 'text-slate-400' : 'text-slate-400'}`}>
-                          {model.modelUsed || model.id} {model.latency ? `• ${model.latency}` : ''}
+
+                      {model.status === 'loading' ? (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px] animate-spin">sync</span>
+                          Streaming...
                         </span>
-                      </div>
+                      ) : model.status === 'error' ? (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                          Failed
+                        </span>
+                      ) : (
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${
+                          model.stanceType === 'buy'
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                            : model.stanceType === 'sell'
+                              ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300 dark:border-rose-700'
+                              : model.stance === 'Answer'
+                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300 dark:border-blue-700'
+                                : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                        }`}>
+                          {model.stance}
+                        </span>
+                      )}
                     </div>
 
+                    {/* Real Generated Response Content from Model */}
                     {model.status === 'loading' ? (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-400 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[12px] animate-spin">sync</span>
-                        Streaming...
-                      </span>
+                      <div className="py-4 flex items-center justify-center gap-2 text-slate-400 text-xs">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                        <span className="text-[11px]">Calling OpenRouter endpoint...</span>
+                      </div>
                     ) : model.status === 'error' ? (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                        Failed
-                      </span>
+                      <div className="p-2.5 rounded-lg bg-rose-950/30 border border-rose-800/40 text-[11px] text-rose-300 font-mono">
+                        {model.error}
+                      </div>
                     ) : (
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${
-                        model.stanceType === 'buy'
-                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
-                          : model.stanceType === 'sell'
-                            ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-300 dark:border-rose-700'
-                            : model.stance === 'Answer'
-                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300 dark:border-blue-700'
-                              : 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                      <p className={`text-xs leading-relaxed font-['Inter'] whitespace-pre-wrap ${
+                        isLightModal ? 'text-slate-700' : 'text-slate-200'
                       }`}>
-                        {model.stance}
-                      </span>
+                        {model.content}
+                      </p>
                     )}
                   </div>
 
-                  {/* Real Generated Response Content from Model */}
-                  {model.status === 'loading' ? (
-                    <div className="py-4 flex items-center justify-center gap-2 text-slate-400 text-xs">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                      <span className="text-[11px]">Calling OpenRouter endpoint...</span>
-                    </div>
-                  ) : model.status === 'error' ? (
-                    <div className="p-2.5 rounded-lg bg-rose-950/30 border border-rose-800/40 text-[11px] text-rose-300 font-mono">
-                      {model.error}
-                    </div>
-                  ) : (
-                    <p className={`text-xs leading-relaxed font-['Inter'] whitespace-pre-wrap ${
-                      isLightModal ? 'text-slate-700' : 'text-slate-200'
+                  {/* Metadata footer */}
+                  {model.status === 'success' && (
+                    <div className={`mt-2.5 pt-2 border-t flex items-center justify-between text-[10px] ${
+                      isLightModal ? 'border-slate-100 text-slate-400' : 'border-slate-700/60 text-slate-400'
                     }`}>
-                      {model.content}
-                    </p>
+                      <span>Architecture: {model.architecture}</span>
+                      <span className="font-mono">
+                        {model.tokens ? `${model.tokens} tokens • ` : ''}Latency: {model.latency}
+                      </span>
+                    </div>
                   )}
-                </div>
-
-                {/* Metadata footer */}
-                {model.status === 'success' && (
-                  <div className={`mt-2.5 pt-2 border-t flex items-center justify-between text-[10px] ${
-                    isLightModal ? 'border-slate-100 text-slate-400' : 'border-slate-700/60 text-slate-400'
-                  }`}>
-                    <span>Architecture: {model.architecture}</span>
-                    <span className="font-mono">
-                      {model.tokens ? `${model.tokens} tokens • ` : ''}Latency: {model.latency}
-                    </span>
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
       {/* Footer Actions */}
@@ -331,16 +445,16 @@ export default function ModelComparisonView({
         isLightModal ? 'bg-slate-50 border-slate-200' : 'bg-slate-800 border-slate-700'
       }`}>
         <button
-          onClick={() => executeRealMultiModelCalls(customPrompt)}
-          disabled={isRunningAll}
-          className={`flex items-center gap-1 font-semibold text-xs transition-colors ${
+          onClick={() => executeRealMultiModelCalls(customPrompt || lastExecutedPrompt)}
+          disabled={isRunningAll || (!customPrompt.trim() && !lastExecutedPrompt)}
+          className={`flex items-center gap-1 font-semibold text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
             isLightModal ? 'text-slate-600 hover:text-blue-600' : 'text-slate-300 hover:text-white'
           }`}
         >
           <span className={`material-symbols-outlined text-[15px] ${isRunningAll ? 'animate-spin text-blue-500' : ''}`}>
             sync
           </span>
-          <span>Re-query All Models</span>
+          <span>{lastExecutedPrompt ? `Re-query: "${lastExecutedPrompt.slice(0, 32)}${lastExecutedPrompt.length > 32 ? '...' : ''}"` : 'Re-query All Models'}</span>
         </button>
       </div>
     </div>

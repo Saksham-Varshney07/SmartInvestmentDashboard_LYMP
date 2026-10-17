@@ -250,8 +250,8 @@ export default function AskAiModal({ symbol, stockData, pageContext, livePageDat
           </div>
         )}
 
-        {/* Dynamic View: Model Comparison OR Chat Area */}
-        {viewMode === 'compare' ? (
+        {/* Dynamic View: Model Comparison and Chat Area kept mounted to retain conversation and streaming state */}
+        <div className={`flex-1 flex flex-col min-h-0 ${viewMode === 'compare' ? 'flex' : 'hidden'}`}>
           <ModelComparisonView
             symbol={symbol}
             stockData={stockData}
@@ -261,117 +261,117 @@ export default function AskAiModal({ symbol, stockData, pageContext, livePageDat
             onClose={onClose}
             onSwitchToChat={() => setViewMode('chat')}
           />
-        ) : (
-          <>
-            {/* Chat Messages Area with Custom Light Blue Scrollbar */}
-            <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${
-              isLightModal
-                ? 'bg-slate-50/70 scrollbar-ai-light'
-                : 'bg-slate-900 scrollbar-ai-dark'
-            }`}>
-              {messages.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 ${
-                    isLightModal ? 'bg-blue-50 text-blue-600' : 'bg-slate-800 text-blue-400'
-                  }`}>
-                    <span className="material-symbols-outlined text-2xl">forum</span>
-                  </div>
-                  <p className={`text-xs leading-relaxed max-w-[280px] mb-4 ${
-                    isLightModal ? 'text-slate-500' : 'text-slate-400'
-                  }`}>
-                    {welcomeText}
-                  </p>
+        </div>
 
-                  {/* Multi-Model Suggestion Chip */}
-                  <button
-                    onClick={openComparisonView}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                      isLightModal
-                        ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                        : 'bg-blue-950/60 text-blue-300 border-blue-800/80 hover:bg-blue-900/60'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[15px] text-blue-500">public</span>
-                    Compare 5 AI Models on {symbol || 'Current Page'}
-                  </button>
+        <div className={`flex-1 flex flex-col min-h-0 ${viewMode === 'chat' ? 'flex' : 'hidden'}`}>
+          {/* Chat Messages Area with Custom Light Blue Scrollbar */}
+          <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${
+            isLightModal
+              ? 'bg-slate-50/70 scrollbar-ai-light'
+              : 'bg-slate-900 scrollbar-ai-dark'
+          }`}>
+            {messages.length === 0 && (
+              <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 ${
+                  isLightModal ? 'bg-blue-50 text-blue-600' : 'bg-slate-800 text-blue-400'
+                }`}>
+                  <span className="material-symbols-outlined text-2xl">forum</span>
                 </div>
-              )}
-              
-              {messages.map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${
-                    msg.role === 'user' 
-                      ? 'bg-blue-600 text-white rounded-br-none' 
-                      : isLightModal
-                        ? 'bg-white text-slate-800 border border-slate-200/90 rounded-bl-none shadow-sm'
-                        : 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-bl-none'
-                  }`}>
-                    <p className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed font-['Inter']">
-                      {msg.content}
-                    </p>
-                    {msg.role === 'assistant' && (
-                      <div className="mt-2 pt-2 border-t border-slate-200/40 dark:border-slate-700/50 flex justify-end">
-                        <button
-                          onClick={openComparisonView}
-                          className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 font-semibold"
-                        >
-                          <span className="material-symbols-outlined text-[12px]">public</span>
-                          Compare other AI models
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                <p className={`text-xs leading-relaxed max-w-[280px] mb-4 ${
+                  isLightModal ? 'text-slate-500' : 'text-slate-400'
+                }`}>
+                  {welcomeText}
+                </p>
 
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className={`rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-2 border shadow-sm ${
+                {/* Multi-Model Suggestion Chip */}
+                <button
+                  onClick={openComparisonView}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                     isLightModal
-                      ? 'bg-white border-slate-200 text-slate-600'
-                      : 'bg-slate-800 border-slate-700 text-slate-300'
-                  }`}>
-                    <div className="flex gap-1">
-                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                    <span className="text-xs">Analyzing financial metrics...</span>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input Area */}
-            <div className={`p-3 border-t transition-colors ${
-              isLightModal ? 'bg-white border-slate-200' : 'bg-slate-800/95 border-slate-700'
-            }`}>
-              <form onSubmit={handleSend} className="flex gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask about this stock or market..."
-                  className={`flex-1 rounded-xl px-4 py-2 text-xs sm:text-sm outline-none border transition-colors ${
-                    isLightModal
-                      ? 'bg-slate-100 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white'
-                      : 'bg-slate-900 border-slate-700 text-white placeholder-slate-400 focus:border-blue-500'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                      : 'bg-blue-950/60 text-blue-300 border-blue-800/80 hover:bg-blue-900/60'
                   }`}
-                  disabled={isLoading}
-                />
-                <button 
-                  type="submit"
-                  disabled={isLoading || !input.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white p-2 rounded-xl transition-colors flex items-center justify-center w-10 h-10 shadow-sm shrink-0"
-                  title="Send Message"
                 >
-                  <span className="material-symbols-outlined text-[20px]">send</span>
+                  <span className="material-symbols-outlined text-[15px] text-blue-500">public</span>
+                  Compare 5 AI Models on {symbol || 'Current Page'}
                 </button>
-              </form>
-            </div>
-          </>
-        )}
+              </div>
+            )}
+            
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${
+                  msg.role === 'user' 
+                    ? 'bg-blue-600 text-white rounded-br-none' 
+                    : isLightModal
+                      ? 'bg-white text-slate-800 border border-slate-200/90 rounded-bl-none shadow-sm'
+                      : 'bg-slate-800 text-slate-200 border border-slate-700/80 rounded-bl-none'
+                }`}>
+                  <p className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed font-['Inter']">
+                    {msg.content}
+                  </p>
+                  {msg.role === 'assistant' && (
+                    <div className="mt-2 pt-2 border-t border-slate-200/40 dark:border-slate-700/50 flex justify-end">
+                      <button
+                        onClick={openComparisonView}
+                        className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 font-semibold"
+                      >
+                        <span className="material-symbols-outlined text-[12px]">public</span>
+                        Compare other AI models
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className={`rounded-2xl rounded-bl-none px-4 py-3 flex items-center gap-2 border shadow-sm ${
+                  isLightModal
+                    ? 'bg-white border-slate-200 text-slate-600'
+                    : 'bg-slate-800 border-slate-700 text-slate-300'
+                }`}>
+                  <div className="flex gap-1">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <span className="text-xs">Analyzing financial metrics...</span>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input Area */}
+          <div className={`p-3 border-t transition-colors ${
+            isLightModal ? 'bg-white border-slate-200' : 'bg-slate-800/95 border-slate-700'
+          }`}>
+            <form onSubmit={handleSend} className="flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask about this stock or market..."
+                className={`flex-1 rounded-xl px-4 py-2 text-xs sm:text-sm outline-none border transition-colors ${
+                  isLightModal
+                    ? 'bg-slate-100 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white'
+                    : 'bg-slate-900 border-slate-700 text-white placeholder-slate-400 focus:border-blue-500'
+                }`}
+                disabled={isLoading}
+              />
+              <button 
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white p-2 rounded-xl transition-colors flex items-center justify-center w-10 h-10 shadow-sm shrink-0"
+                title="Send Message"
+              >
+                <span className="material-symbols-outlined text-[20px]">send</span>
+              </button>
+            </form>
+          </div>
+        </div>
       </motion.div>
     </AnimatePresence>
   );
