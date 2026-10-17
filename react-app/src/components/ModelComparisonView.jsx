@@ -131,6 +131,46 @@ export default function ModelComparisonView({
     setIsRunningAll(false);
   };
 
+  const retrySingleModel = async (modelId, altModelId = null) => {
+    if (!apiKey) return;
+    const model = REAL_BENCHMARK_MODELS.find(m => m.id === modelId) || { id: modelId, name: 'AI Model' };
+    const query = lastExecutedPrompt || customPrompt;
+    if (!query) return;
+
+    setModelResults(prev => ({
+      ...prev,
+      [modelId]: {
+        ...(prev[modelId] || model),
+        status: 'loading',
+        error: null
+      }
+    }));
+
+    try {
+      const result = await querySingleModelOpenRouter(
+        model,
+        activeSymbol,
+        query,
+        stockData,
+        apiKey,
+        altModelId || 'openrouter/free'
+      );
+      setModelResults(prev => ({
+        ...prev,
+        [modelId]: result
+      }));
+    } catch (err) {
+      setModelResults(prev => ({
+        ...prev,
+        [modelId]: {
+          ...(prev[modelId] || model),
+          status: 'error',
+          error: err.message || 'Retry failed'
+        }
+      }));
+    }
+  };
+
   const handlePromptSubmit = (e) => {
     e.preventDefault();
     if (!customPrompt.trim() || isRunningAll) return;
@@ -383,9 +423,14 @@ export default function ModelComparisonView({
                           Streaming...
                         </span>
                       ) : model.status === 'error' ? (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                          Failed
-                        </span>
+                        <button
+                          onClick={() => retrySingleModel(model.id, 'openrouter/free')}
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 border border-blue-500/30 transition-all flex items-center gap-1 shadow-sm"
+                          title="Click to try an alternative free backup model"
+                        >
+                          <span className="material-symbols-outlined text-[12px]">swap_calls</span>
+                          Try Other Model
+                        </button>
                       ) : (
                         <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${
                           model.stanceType === 'buy'
@@ -410,8 +455,34 @@ export default function ModelComparisonView({
                         <span className="text-[11px]">Calling OpenRouter endpoint...</span>
                       </div>
                     ) : model.status === 'error' ? (
-                      <div className="p-2.5 rounded-lg bg-rose-950/30 border border-rose-800/40 text-[11px] text-rose-300 font-mono">
-                        {model.error}
+                      <div className={`p-3 rounded-xl border flex flex-col gap-2 my-1 transition-all ${
+                        isLightModal ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-slate-900/90 border-slate-700 text-slate-200'
+                      }`}>
+                        <div className="flex items-center gap-1.5 text-xs text-amber-500 dark:text-amber-400 font-medium">
+                          <span className="material-symbols-outlined text-[15px]">info</span>
+                          <span>{model.error || 'Provider busy on free tier.'}</span>
+                        </div>
+                        <div className="flex items-center flex-wrap gap-2 mt-0.5">
+                          <button
+                            onClick={() => retrySingleModel(model.id, 'openrouter/free')}
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all hover:scale-[1.02]"
+                            title="Query OpenRouter Smart Free Router to get an immediate response"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">swap_calls</span>
+                            <span>Try with other model</span>
+                          </button>
+                          <button
+                            onClick={() => retrySingleModel(model.id, 'dots-studio/dots-3-note-preview:free')}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                              isLightModal 
+                                ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100' 
+                                : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
+                            }`}
+                            title="Try with Dots Note 3 backup"
+                          >
+                            Try Dots Note 3
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <p className={`text-xs leading-relaxed font-['Inter'] whitespace-pre-wrap ${
@@ -427,7 +498,17 @@ export default function ModelComparisonView({
                     <div className={`mt-2.5 pt-2 border-t flex items-center justify-between text-[10px] ${
                       isLightModal ? 'border-slate-100 text-slate-400' : 'border-slate-700/60 text-slate-400'
                     }`}>
-                      <span>Architecture: {model.architecture}</span>
+                      <div className="flex items-center gap-2">
+                        <span>Architecture: {model.architecture}</span>
+                        <button
+                          onClick={() => retrySingleModel(model.id, 'openrouter/free')}
+                          className="text-blue-500 hover:underline flex items-center gap-0.5 text-[10px] font-semibold transition-all hover:text-blue-400"
+                          title="Re-run this card using an alternative free AI model"
+                        >
+                          <span className="material-symbols-outlined text-[11px]">swap_calls</span>
+                          Try other model
+                        </button>
+                      </div>
                       <span className="font-mono">
                         {model.tokens ? `${model.tokens} tokens • ` : ''}Latency: {model.latency}
                       </span>

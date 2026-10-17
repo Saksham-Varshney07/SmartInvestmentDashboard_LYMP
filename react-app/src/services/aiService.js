@@ -109,11 +109,17 @@ const generateSmartFallbackAnswer = (symbol, chatHistory, stockData, pageContext
 // Strips stray XML tags or model tool-calling tokens
 export const cleanModelOutput = (text) => {
   if (!text) return "";
-  return text
+  let cleaned = text
     .replace(/<\|tool_call_start\|>[\s\S]*?<\|tool_call_end\|>/gi, '')
     .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
     .replace(/<\|.*?\|>/g, '')
     .trim();
+
+  // If stripped everything because answer was wrapped in think tags:
+  if (!cleaned && text.includes('<think>')) {
+    cleaned = text.replace(/<\/?think>/gi, '').trim();
+  }
+  return cleaned || text.trim();
 };
 
 export const askAiChat = async (symbol, chatHistory, stockData, pageContext = "", livePageData = "") => {
@@ -157,6 +163,8 @@ Always end with: ⚠️ Invest at your own risk.`;
 
       // Responsive free models on OpenRouter
       const candidateModels = [
+        'dots-studio/dots-3-note-preview:free',
+        'openrouter/free',
         'poolside/laguna-xs-2.1:free',
         'poolside/laguna-s-2.1:free',
         'nvidia/nemotron-3.5-lightning:free'
@@ -165,7 +173,7 @@ Always end with: ⚠️ Invest at your own risk.`;
       for (const modelId of candidateModels) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 6000); // 6-second strict timeout per model
+          const timeoutId = setTimeout(() => controller.abort(), 7000); // 7-second strict timeout per model
 
           const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
@@ -178,7 +186,7 @@ Always end with: ⚠️ Invest at your own risk.`;
             body: JSON.stringify({
               model: modelId,
               messages: messages,
-              max_tokens: 500,
+              max_tokens: 650,
             }),
             signal: controller.signal
           });
@@ -187,7 +195,13 @@ Always end with: ⚠️ Invest at your own risk.`;
 
           if (response.ok) {
             const data = await response.json();
-            const raw = data.choices?.[0]?.message?.content;
+            let raw = data.choices?.[0]?.message?.content;
+            if (!raw || !raw.trim()) {
+              raw = data.choices?.[0]?.message?.reasoning || 
+                    data.choices?.[0]?.message?.thought || 
+                    data.choices?.[0]?.text || 
+                    "";
+            }
             const cleaned = cleanModelOutput(raw);
             if (cleaned && cleaned.length > 5) {
               return cleaned;
@@ -221,7 +235,7 @@ export const REAL_BENCHMARK_MODELS = [
     provider: 'Poolside',
     architecture: 'Financial Micro-LLM',
     avatarColor: 'bg-purple-600',
-    fallbackModel: 'poolside/laguna-s-2.1:free'
+    fallbackModel: 'dots-studio/dots-3-note-preview:free'
   },
   {
     id: 'poolside/laguna-s-2.1:free',
@@ -229,7 +243,7 @@ export const REAL_BENCHMARK_MODELS = [
     provider: 'Poolside',
     architecture: 'High-Capacity Reasoning',
     avatarColor: 'bg-emerald-600',
-    fallbackModel: 'poolside/laguna-xs-2.1:free'
+    fallbackModel: 'openrouter/free'
   },
   {
     id: 'nvidia/nemotron-3.5-lightning:free',
@@ -237,7 +251,7 @@ export const REAL_BENCHMARK_MODELS = [
     provider: 'NVIDIA',
     architecture: 'High-Throughput Reasoning',
     avatarColor: 'bg-teal-600',
-    fallbackModel: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
+    fallbackModel: 'dots-studio/dots-3-note-preview:free'
   },
   {
     id: 'dots-studio/dots-3-note-preview:free',
@@ -245,11 +259,18 @@ export const REAL_BENCHMARK_MODELS = [
     provider: 'Dots Studio',
     architecture: 'Instruction Fine-Tuned',
     avatarColor: 'bg-indigo-600',
-    fallbackModel: 'thinkingmachines/inkling:free'
+    fallbackModel: 'openrouter/free'
   }
 ];
 
-export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stockData, apiKey) => {
+export const ALTERNATIVE_MODELS_LIST = [
+  { id: 'dots-studio/dots-3-note-preview:free', name: 'Dots Note 3 (Fast)' },
+  { id: 'openrouter/free', name: 'OpenRouter Smart Free Router' },
+  { id: 'poolside/laguna-s-2.1:free', name: 'Poolside Laguna S 2.1' },
+  { id: 'nvidia/nemotron-3.5-lightning:free', name: 'NVIDIA Nemotron 3.5' }
+];
+
+export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stockData, apiKey, overrideModelId = null) => {
   const startTime = performance.now();
   let stockContext = "";
   if (stockData) {
@@ -260,7 +281,6 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
   }
 
   const cleanPrompt = (prompt || '').trim();
-  // Check if user is asking a basic prompt (math, general question, greetings, etc.)
   const isGeneralPrompt = /^(what is|\d+\s*[\+\-\*\/]|who is|tell me|hello|hi\b|how to|why is|explain|calculate|solve)/i.test(cleanPrompt);
 
   let userContent = "";
@@ -270,72 +290,94 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
     userContent = `${cleanPrompt || `Give your equity rating and investment analysis on ${symbol || 'this stock'}.`}\n\n${stockContext ? `Market Context: ${stockContext}` : ''}\n\nProvide 2-3 concise sentences with an explicit verdict stance: [BULLISH, BEARISH, or NEUTRAL] and brief fundamental justification. Do not output code or tool calls. End with: ⚠️ Invest at your own risk.`;
   }
 
-  const makeRequest = async (modelId) => {
-    return await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey.trim()}`,
-        'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173',
-        'X-Title': 'Smart Investment Dashboard'
-      },
-      body: JSON.stringify({
-        model: modelId,
-        // Crucial: Put user prompt in 'user' role to prevent HTTP 400 'system role not supported' on open-source models
-        messages: [
-          { role: 'user', content: userContent }
-        ],
-        max_tokens: 300,
-      })
-    });
+  const makeSingleCall = async (modelId) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s per candidate
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey.trim()}`,
+          'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173',
+          'X-Title': 'Smart Investment Dashboard'
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role: 'user', content: userContent }],
+          max_tokens: 650,
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      return response;
+    } catch (err) {
+      clearTimeout(timeout);
+      return null;
+    }
   };
 
-  try {
-    let res = await makeRequest(modelInfo.id);
+  // Build candidate models order to cascade through
+  const primaryId = overrideModelId || modelInfo.id;
+  const candidates = [
+    primaryId,
+    overrideModelId ? 'openrouter/free' : modelInfo.fallbackModel,
+    'dots-studio/dots-3-note-preview:free',
+    'openrouter/free'
+  ].filter(Boolean);
 
-    // If rate-limited or unavailable, try fallback model with slight delay
-    if (!res.ok && modelInfo.fallbackModel) {
-      console.warn(`Primary model ${modelInfo.id} returned HTTP ${res.status}. Attempting fallback to ${modelInfo.fallbackModel}`);
-      await new Promise((r) => setTimeout(r, 250));
-      res = await makeRequest(modelInfo.fallbackModel);
+  const uniqueCandidates = [...new Set(candidates)];
+
+  let successfulData = null;
+  let modelActuallyUsed = primaryId;
+  let lastErrorMsg = 'Endpoint busy on free tier.';
+
+  for (let i = 0; i < uniqueCandidates.length; i++) {
+    const candidateId = uniqueCandidates[i];
+    if (i > 0) {
+      await new Promise(r => setTimeout(r, 200));
     }
 
-    const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+    try {
+      const res = await makeSingleCall(candidateId);
+      if (res && res.ok) {
+        const data = await res.json();
+        let raw = data.choices?.[0]?.message?.content;
+        if (!raw || !raw.trim()) {
+          raw = data.choices?.[0]?.message?.reasoning || 
+                data.choices?.[0]?.message?.thought || 
+                data.choices?.[0]?.delta?.content || 
+                data.choices?.[0]?.text || 
+                "";
+        }
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      const errMsg = errData.error?.message || errData.message || (res.status === 429 ? 'Rate limit exceeded on free tier. Please wait a few moments and re-query.' : `Provider error (${res.status})`);
-      console.error(`[OpenRouter API Error] ${modelInfo.id} status ${res.status}:`, errMsg);
-      return {
-        id: modelInfo.id,
-        name: modelInfo.name,
-        provider: modelInfo.provider,
-        architecture: modelInfo.architecture,
-        avatarColor: modelInfo.avatarColor,
-        status: 'error',
-        error: errMsg,
-        latency: `${elapsed}s`
-      };
+        const rawContent = cleanModelOutput(raw) || raw;
+        if (rawContent && rawContent.trim().length > 2) {
+          successfulData = {
+            content: rawContent.trim(),
+            tokens: data.usage?.total_tokens || null,
+            modelUsed: data.model || candidateId
+          };
+          modelActuallyUsed = data.model || candidateId;
+          break;
+        } else {
+          lastErrorMsg = 'Empty output returned from model.';
+        }
+      } else if (res) {
+        const errJson = await res.json().catch(() => ({}));
+        lastErrorMsg = errJson.error?.message || errJson.message || `HTTP ${res.status}`;
+      } else {
+        lastErrorMsg = 'Request timed out.';
+      }
+    } catch (e) {
+      lastErrorMsg = e.message || 'Call failed';
     }
+  }
 
-    const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content || "";
-    const rawContent = cleanModelOutput(raw) || raw;
+  const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
 
-    if (!rawContent || rawContent.length < 2) {
-      return {
-        id: modelInfo.id,
-        name: modelInfo.name,
-        provider: modelInfo.provider,
-        architecture: modelInfo.architecture,
-        avatarColor: modelInfo.avatarColor,
-        status: 'error',
-        error: 'Model returned an empty response. Click Compare Live to retry.',
-        latency: `${elapsed}s`
-      };
-    }
-
-    const lower = rawContent.toLowerCase();
+  if (successfulData) {
+    const lower = successfulData.content.toLowerCase();
     let stance = isGeneralPrompt ? 'Answer' : 'Neutral';
     let stanceType = 'hold';
     if (lower.includes('bullish') || lower.includes('buy') || lower.includes('positive') || lower.includes('upside') || lower.includes('outperform')) {
@@ -353,25 +395,25 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
       architecture: modelInfo.architecture,
       avatarColor: modelInfo.avatarColor,
       status: 'success',
-      content: rawContent,
+      content: successfulData.content,
       stance,
       stanceType,
       latency: `${elapsed}s`,
-      tokens: data.usage?.total_tokens || null,
-      modelUsed: data.model || modelInfo.id
-    };
-  } catch (e) {
-    const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
-    return {
-      id: modelInfo.id,
-      name: modelInfo.name,
-      provider: modelInfo.provider,
-      architecture: modelInfo.architecture,
-      avatarColor: modelInfo.avatarColor,
-      status: 'error',
-      error: e.message || 'Network request failed',
-      latency: `${elapsed}s`
+      tokens: successfulData.tokens,
+      modelUsed: successfulData.modelUsed || modelActuallyUsed
     };
   }
+
+  return {
+    id: modelInfo.id,
+    name: modelInfo.name,
+    provider: modelInfo.provider,
+    architecture: modelInfo.architecture,
+    avatarColor: modelInfo.avatarColor,
+    status: 'error',
+    error: lastErrorMsg,
+    latency: `${elapsed}s`,
+    canRetryAlt: true
+  };
 };
 
