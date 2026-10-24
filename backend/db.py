@@ -26,6 +26,14 @@ def init_db():
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
         import models
         Base.metadata.create_all(bind=engine)
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            for col in ['xgboost_prob FLOAT', 'xgboost_risk VARCHAR']:
+                try:
+                    conn.execute(text(f'ALTER TABLE risk_scores ADD COLUMN {col};'))
+                    conn.commit()
+                except Exception:
+                    pass
         print('SQLite Database initialized successfully.')
 
 def get_db():

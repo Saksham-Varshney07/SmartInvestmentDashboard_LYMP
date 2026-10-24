@@ -30,6 +30,8 @@ class RiskScore(Base):
     latest_price = Column(Float)
     anomaly_ratio = Column(Float)
     stars = Column(Integer)
+    xgboost_prob = Column(Float, nullable=True)
+    xgboost_risk = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
 
 class User(Base):

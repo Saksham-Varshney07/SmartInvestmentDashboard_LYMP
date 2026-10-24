@@ -12,8 +12,11 @@ export default function Onboarding() {
     // Trigger onboarding automatically on page load/refresh if user is logged in
     if (!currentUser) return;
     
-    // Always show it on hard refresh as requested
-    setShowWelcome(true);
+    // Check if user has already dismissed or completed onboarding
+    const hasSeen = localStorage.getItem('has_seen_onboarding_tour');
+    if (!hasSeen) {
+      setShowWelcome(true);
+    }
     
     // Listen for manual trigger from the Guide button in the top nav
     const triggerHandler = () => setShowWelcome(true);
@@ -117,6 +120,7 @@ export default function Onboarding() {
   };
 
   const handleSkipWelcome = () => {
+    localStorage.setItem('has_seen_onboarding_tour', 'true');
     setShowWelcome(false);
   };
 

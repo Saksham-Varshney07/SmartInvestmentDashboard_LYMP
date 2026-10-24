@@ -348,7 +348,7 @@ export default function StockSearch() {
                <div className="flex items-center justify-between mb-3">
                  <div className="flex items-center gap-2">
                    <span className={`material-symbols-outlined ${rm.text}`}>{rm.icon}</span>
-                   <span className="font-bold text-slate-800">AI Risk Classification</span>
+                   <span className="font-bold text-slate-800 dark:text-white">AI Risk Classification</span>
                  </div>
                  <span className={`flex items-center gap-1.5 text-sm font-bold px-3 py-1 rounded-full ${rm.bg} ${rm.text} border ${rm.border}`}>
                    <span className={`w-2 h-2 rounded-full ${rm.dot} animate-pulse`}></span>
@@ -361,6 +361,40 @@ export default function StockSearch() {
                  ))}
                  <span className="text-xs text-slate-500 ml-1 self-center">{r.stars}/5 AI Score</span>
                </div>
+             </div>
+           )}
+
+           {/* Cost-Sensitive XGBoost Drawdown Forecaster Card */}
+           {r.xgboost_prob !== undefined && (
+             <div className="bg-gradient-to-br from-indigo-50/70 to-purple-50/70 dark:from-indigo-950/40 dark:to-purple-950/40 rounded-xl border border-indigo-200/80 dark:border-indigo-800/60 p-5 shadow-sm transition-colors">
+               <div className="flex items-center justify-between mb-3">
+                 <div className="flex items-center gap-2">
+                   <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-400">bolt</span>
+                   <span className="font-bold text-slate-900 dark:text-white text-sm">XGBoost Downside Risk</span>
+                 </div>
+                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                   r.xgboost_prob >= 40 ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-400' :
+                   r.xgboost_prob >= 20 ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-400' :
+                   'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400'
+                 }`}>
+                   {r.xgboost_risk || 'Low Risk'}
+                 </span>
+               </div>
+               <div className="flex justify-between items-baseline mb-2">
+                 <span className="text-xs text-slate-600 dark:text-slate-400">5-Day Drawdown Probability</span>
+                 <span className="text-xl font-black text-indigo-700 dark:text-indigo-300 font-mono">{r.xgboost_prob}%</span>
+               </div>
+               <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 mb-2 overflow-hidden">
+                 <div
+                   className={`h-2 rounded-full transition-all duration-500 ${
+                     r.xgboost_prob >= 40 ? 'bg-red-500' : r.xgboost_prob >= 20 ? 'bg-amber-500' : 'bg-emerald-500'
+                   }`}
+                   style={{ width: `${Math.min(100, Math.max(5, r.xgboost_prob))}%` }}
+                 ></div>
+               </div>
+               <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                 Cost-sensitive gradient boosting (<code className="text-indigo-600 dark:text-indigo-400">scale_pos_weight</code> weighted) trained to detect downside asymmetry before market corrections.
+               </p>
              </div>
            )}
 

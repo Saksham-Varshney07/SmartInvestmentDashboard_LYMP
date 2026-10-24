@@ -9,6 +9,7 @@ from db import init_db, get_db, engine, Base
 import models
 from scraper import get_stock_data
 from ml_pipeline import run_pipeline
+from ticker_resolver import resolve_symbol, resolve_ticker_list, get_search_suggestions, discover_via_yahoo_search
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -77,16 +78,11 @@ def read_root():
 @app.get('/api/search')
 def search_yahoo(q: str):
     """
-    Fetches autocomplete suggestions from Yahoo Finance.
+    Fetches autocomplete suggestions from Yahoo Finance augmented with intelligent ticker resolver.
     """
-    url = f'https://query2.finance.yahoo.com/v1/finance/search?q={q}'
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
-        res = requests.get(url, headers=headers, timeout=5)
-        data = res.json()
-        quotes = data.get('quotes', [])
-        filtered = [{'symbol': q.get('symbol'), 'shortname': q.get('shortname', ''), 'exchDisp': q.get('exchDisp', '')} for q in quotes if 'symbol' in q]
-        return {'results': filtered}
+        suggestions = get_search_suggestions(q, max_results=6)
+        return {'results': suggestions}
     except Exception as e:
         return {'error': str(e), 'results': []}
 
@@ -94,41 +90,49 @@ def search_yahoo(q: str):
 def run_single_analysis(symbol: str, db: Session=Depends(get_db)):
     """
     Analyzes a single stock and returns its risk profile and history.
+    Auto-resolves aliases and abbreviations (e.g. TATA, HUL, SBI, AIRTEL).
     """
-    symbol = symbol.upper()
+    resolved_sym = resolve_symbol(symbol)
     try:
-        raw_df = get_stock_data([symbol], period="max")
+        raw_df = get_stock_data([resolved_sym], period="max")
+        if raw_df.empty or len(raw_df) < 14:
+            # Fallback to alternate exchange suffix if needed
+            alt_sym = resolved_sym.replace('.NS', '.BO') if '.NS' in resolved_sym else (resolved_sym + '.NS' if '.' not in resolved_sym else resolved_sym)
+            if alt_sym != resolved_sym:
+                raw_df = get_stock_data([alt_sym], period="max")
+                if not raw_df.empty and len(raw_df) >= 14:
+                    resolved_sym = alt_sym
+
         if raw_df.empty or len(raw_df) < 14:
             suggestion = ""
-            if ".BO" in symbol:
-                suggestion = f" Try using the NSE ticker instead: {symbol.replace('.BO', '.NS')}."
-            raise HTTPException(status_code=404, detail=f'Insufficient historical data available from Yahoo Finance for symbol {symbol} (requires at least 14 days of trading history).{suggestion}')
+            if ".BO" in resolved_sym:
+                suggestion = f" Try using the NSE ticker instead: {resolved_sym.replace('.BO', '.NS')}."
+            raise HTTPException(status_code=404, detail=f'Insufficient historical data available from Yahoo Finance for symbol {symbol} (resolved as {resolved_sym}).{suggestion}')
         
         final_output, full_processed_df = run_pipeline(raw_df)
         if full_processed_df.empty:
-            suggestion = ""
-            if ".BO" in symbol:
-                suggestion = f" Try using the NSE ticker instead: {symbol.replace('.BO', '.NS')}."
-            raise HTTPException(status_code=404, detail=f'Insufficient data to train AI anomaly models for {symbol}.{suggestion}')
+            raise HTTPException(status_code=404, detail=f'Insufficient data to train AI anomaly models for {resolved_sym}.')
         market_entries = []
         for _, row in full_processed_df.iterrows():
             market_entry = models.AssetPrice(ticker=str(row['Symbol']), date=row['Date'], open=float(row['Open']), high=float(row['High']), low=float(row['Low']), close=float(row['Close']), volume=int(row['Volume']))
             db.merge(market_entry)
             market_entries.append(market_entry)
         analysis_data = None
+        valid_cols = {c.name for c in models.RiskScore.__table__.columns}
         for item in final_output:
-            analysis_entry = models.RiskScore(**item)
+            score_data = {k: v for k, v in item.items() if k in valid_cols}
+            analysis_entry = models.RiskScore(**score_data)
             db.merge(analysis_entry)
             analysis_data = item
         db.commit()
         import yfinance as yf
         info = {}
         try:
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(resolved_sym)
             info = ticker.info
         except Exception:
             pass
-        return {'status': 'success', 'analysis': analysis_data, 'history': market_entries, 'fundamentals': info}
+        return {'status': 'success', 'resolved_symbol': resolved_sym, 'analysis': analysis_data, 'history': market_entries, 'fundamentals': info}
     except HTTPException as h:
         raise h
     except Exception as e:
@@ -150,8 +154,10 @@ def execute_pipeline(db: Session=Depends(get_db)):
         for _, row in full_processed_df.iterrows():
             market_entry = models.AssetPrice(ticker=str(row['Symbol']), date=row['Date'], open=float(row['Open']), high=float(row['High']), low=float(row['Low']), close=float(row['Close']), volume=int(row['Volume']))
             db.merge(market_entry)
+        valid_cols = {c.name for c in models.RiskScore.__table__.columns}
         for item in final_output:
-            analysis_entry = models.RiskScore(**item)
+            score_data = {k: v for k, v in item.items() if k in valid_cols}
+            analysis_entry = models.RiskScore(**score_data)
             db.merge(analysis_entry)
         db.commit()
         return {'status': 'success', 'message': f'Pipeline executed successfully for {len(final_output)} assets.'}
@@ -198,23 +204,16 @@ def get_market_trend(symbol: str, timeframe: str = "6mo", interval: str = None):
                 tf = '6mo'
                 interval = '1d'
 
-        # Map known outdated/alias tickers to correct Yahoo Finance tickers
-        TICKER_MAP = {
-            'TATAMOTORS.NS': 'TMCV.NS',
-            'TATAMOTORS': 'TMCV.NS',
-            'INFOSYS.NS': 'INFY.NS',
-            'INFOSYS': 'INFY.NS',
-            'MINDTREE.NS': 'LTIM.NS',
-            'MINDTREE': 'LTIM.NS'
-        }
-        mapped_symbol = TICKER_MAP.get(symbol.upper().strip(), symbol.upper().strip())
-        
+        # Resolve symbol through central ticker_resolver
+        mapped_symbol = resolve_symbol(symbol)
         ticker = yf.Ticker(mapped_symbol)
         hist = ticker.history(period=tf, interval=interval)
         
         if hist.empty:
-            if not symbol.endswith('.NS') and not symbol.endswith('.BO'):
-                hist = yf.Ticker(symbol + ".NS").history(period=tf, interval=interval)
+            if mapped_symbol.endswith('.NS'):
+                hist = yf.Ticker(mapped_symbol.replace('.NS', '.BO')).history(period=tf, interval=interval)
+            elif not mapped_symbol.endswith('.NS') and not mapped_symbol.endswith('.BO'):
+                hist = yf.Ticker(mapped_symbol + ".NS").history(period=tf, interval=interval)
         
         if hist.empty:
             return {"symbol": symbol, "timeframe": tf, "trend": [], "points": []}
@@ -708,20 +707,10 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
             
         raw_tickers = [s.upper().strip() for s in stocks_list]
         
-        # Map known outdated/alias tickers to correct Yahoo Finance tickers
-        TICKER_MAP = {
-            'TATAMOTORS.NS': 'TMCV.NS',
-            'TATAMOTORS': 'TMCV.NS',
-            'INFOSYS.NS': 'INFY.NS',
-            'INFOSYS': 'INFY.NS',
-            'MINDTREE.NS': 'LTIM.NS',
-            'MINDTREE': 'LTIM.NS'
-        }
-        
-        mapped_tickers = [TICKER_MAP.get(t, t) for t in raw_tickers]
+        # Map symbols using intelligent ticker resolver (handles HUL, TATAMOTORS, SBI, etc.)
+        mapped_tickers, raw_to_canonical = resolve_ticker_list(raw_tickers)
             
         # 1. Fetch Real Historical Data (Last 1 Year)
-        # Try fetching exactly what was passed first
         data = yf.download(mapped_tickers, period="1y", progress=False)['Close']
         if isinstance(data, pd.Series):
             data = data.to_frame(name=mapped_tickers[0])
@@ -730,11 +719,15 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
         valid_tickers = [c for c in data.columns if not data[c].isna().all()]
         failed_tickers = [t for t in mapped_tickers if t not in valid_tickers]
         
-        # Retry failed tickers by appending .NS if they lack a suffix
+        # Tier 1 Fallback: Suffix switches (.NS <-> .BO, or appending .NS)
         retry_tickers = []
         for t in failed_tickers:
             if '.' not in t and '-' not in t and '=' not in t:
                 retry_tickers.append(t + '.NS')
+            elif t.endswith('.NS'):
+                retry_tickers.append(t.replace('.NS', '.BO'))
+            elif t.endswith('.BO'):
+                retry_tickers.append(t.replace('.BO', '.NS'))
                 
         if retry_tickers:
             retry_data = yf.download(retry_tickers, period="1y", progress=False)['Close']
@@ -744,15 +737,31 @@ def analyze_portfolio_architecture(payload: PortfolioRequest, db: Session=Depend
                 if not retry_data[c].isna().all():
                     data[c] = retry_data[c]
                     valid_tickers.append(c)
+
+        # Tier 2 Fallback: Dynamic discovery via Yahoo Finance Search API for any future/unknown stock
+        still_failed = [t for t in mapped_tickers if t not in valid_tickers and not any(r in valid_tickers for r in [t + '.NS', t.replace('.NS', '.BO'), t.replace('.BO', '.NS')])]
+        for ft in still_failed:
+            discovered = discover_via_yahoo_search(ft)
+            if discovered and discovered not in valid_tickers:
+                disc_data = yf.download([discovered], period="1y", progress=False)['Close']
+                if isinstance(disc_data, pd.Series):
+                    disc_data = disc_data.to_frame(name=discovered)
+                if discovered in disc_data.columns and not disc_data[discovered].isna().all():
+                    data[discovered] = disc_data[discovered]
+                    valid_tickers.append(discovered)
         
         if len(valid_tickers) == 0:
             raise ValueError("No valid data returned from Yahoo Finance for the provided stocks.")
             
-        # If any ticker completely failed, strictly halt the analysis to ensure 
-        # the correlation matrix matches the user's input 1:1.
-        failed_after_retry = [t for t in mapped_tickers if t not in valid_tickers and (t + '.NS') not in valid_tickers]
-        if failed_after_retry:
-            raise ValueError(f"Invalid Tickers: Could not fetch data for {', '.join(failed_after_retry)}. Please ensure all tickers are valid before proceeding.")
+        # Check if any ticker completely failed even after multi-tier dynamic fallback
+        unresolved_failed = []
+        for raw, canonical in raw_to_canonical.items():
+            possible_symbols = [raw, canonical, canonical + '.NS', canonical.replace('.NS', '.BO'), canonical.replace('.BO', '.NS')]
+            if not any(ps in valid_tickers for ps in possible_symbols):
+                unresolved_failed.append(raw)
+
+        if unresolved_failed:
+            raise ValueError(f"Invalid Tickers: Could not fetch data for {', '.join(unresolved_failed)}. Please ensure all tickers or company names are valid.")
 
         # Filter data to only valid columns
         data = data[valid_tickers]

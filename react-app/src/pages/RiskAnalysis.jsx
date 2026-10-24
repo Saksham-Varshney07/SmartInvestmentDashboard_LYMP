@@ -400,10 +400,33 @@ CRITICAL RULES:
     return () => clearTimeout(timer);
   }, [stockInput]);
 
+  const ALIAS_MAP = {
+    'HUL': 'HINDUNILVR.NS',
+    'HUL.NS': 'HINDUNILVR.NS',
+    'HINDUSTANUNILEVER': 'HINDUNILVR.NS',
+    'HINDUSTANUNILEVER.NS': 'HINDUNILVR.NS',
+    'TATAMOTORS': 'TMCV.NS',
+    'TATAMOTORS.NS': 'TMCV.NS',
+    'TATA': 'TMCV.NS',
+    'INFOSYS': 'INFY.NS',
+    'INFOSYS.NS': 'INFY.NS',
+    'MINDTREE': 'LTIM.NS',
+    'MINDTREE.NS': 'LTIM.NS',
+    'SBI': 'SBIN.NS',
+    'SBI.NS': 'SBIN.NS',
+    'AIRTEL': 'BHARTIARTL.NS',
+    'AIRTEL.NS': 'BHARTIARTL.NS',
+    'M&M': 'M&M.NS',
+    'L&T': 'LT.NS',
+  };
+
   const addStock = (sym = null) => {
-    const symbolToAdd = typeof sym === 'string' ? sym : stockInput.trim();
-    if (symbolToAdd && !stocks.includes(symbolToAdd.toUpperCase())) {
-      setStocks([...stocks, symbolToAdd.toUpperCase()]);
+    const rawSym = typeof sym === 'string' ? sym : stockInput.trim();
+    if (!rawSym) return;
+    const cleanSym = rawSym.toUpperCase();
+    const resolved = ALIAS_MAP[cleanSym] || cleanSym;
+    if (!stocks.includes(resolved)) {
+      setStocks([...stocks, resolved]);
       setStockInput('');
       setSuggestions([]);
       setShowSuggestions(false);

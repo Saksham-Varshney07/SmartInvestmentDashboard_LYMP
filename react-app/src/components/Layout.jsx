@@ -103,7 +103,12 @@ export default function Layout({ children }) {
 
   const handleSearchKeyPress = (e) => {
     if (e.key === 'Enter' && searchTerm) {
-      navigate(`/search/${searchTerm}`);
+      if (suggestions && suggestions.length > 0) {
+        selectSymbol(suggestions[0].symbol);
+      } else {
+        setShowSuggestions(false);
+        navigate(`/search/${searchTerm.trim().toUpperCase()}`);
+      }
     }
   };
 

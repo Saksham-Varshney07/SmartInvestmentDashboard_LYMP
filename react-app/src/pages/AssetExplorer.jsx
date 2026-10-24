@@ -155,6 +155,20 @@ export default function AssetExplorer() {
                         <span className="text-xs text-slate-500 dark:text-slate-400">Volatility</span>
                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{(d.volatility * 100).toFixed(2)}%</span>
                       </div>
+                      {d.xgboost_prob !== undefined && (
+                        <div className="flex justify-between items-center bg-indigo-50/60 dark:bg-indigo-950/40 px-2 py-1 rounded border border-indigo-100 dark:border-indigo-900/40">
+                          <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">bolt</span> XGBoost Drawdown
+                          </span>
+                          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
+                            d.xgboost_prob >= 40 ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' :
+                            d.xgboost_prob >= 20 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' :
+                            'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
+                          }`}>
+                            {d.xgboost_prob}%
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="border-t border-slate-100 dark:border-slate-800 pt-4 text-xs text-slate-400 italic">Click Analyze to run ML pipeline</div>
