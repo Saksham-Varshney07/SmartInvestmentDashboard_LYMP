@@ -106,20 +106,87 @@ const generateSmartFallbackAnswer = (symbol, chatHistory, stockData, pageContext
   return answer;
 };
 
-// Strips stray XML tags or model tool-calling tokens
+// Strips stray XML tags, chain-of-thought, or internal model thinking processes
 export const cleanModelOutput = (text) => {
-  if (!text) return "";
+  if (!text || typeof text !== 'string') return "";
+
   let cleaned = text
     .replace(/<\|tool_call_start\|>[\s\S]*?<\|tool_call_end\|>/gi, '')
     .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
     .replace(/<\|.*?\|>/g, '')
+    // 1. Remove standard XML thinking/reasoning tags
+    .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')
+    .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
     .trim();
 
-  // If stripped everything because answer was wrapped in think tags:
-  if (!cleaned && text.includes('<think>')) {
-    cleaned = text.replace(/<\/?think>/gi, '').trim();
+  // If text was cut off before closing tag: e.g. <think>...[EOF]
+  if (/<(?:think|thought|thinking|reasoning)>/i.test(cleaned)) {
+    const splitTag = cleaned.split(/<(?:think|thought|thinking|reasoning)>/i);
+    cleaned = (splitTag[0] || '').trim();
   }
-  return cleaned || text.trim();
+
+  // 2. Look for explicit final answer / verdict markers
+  const finalMarkerMatch = /(?:(?:\*\*|#+)?\s*(?:final response|final answer|final verdict|verdict|recommendation|final output|conclusion):\s*(?:\*\*|#+)?)([\s\S]+)/i.exec(cleaned);
+  if (finalMarkerMatch && finalMarkerMatch[1] && finalMarkerMatch[1].trim().length > 10) {
+    return finalMarkerMatch[1].trim();
+  }
+
+  // 3. Strip "Here's a thinking process:" / "Thinking Process:" blocks
+  if (/(?:here'?s (?:a )?thinking process|thinking process|thought process):/i.test(cleaned)) {
+    const afterThinking = cleaned.split(/(?:here'?s (?:a )?thinking process|thinking process|thought process):/i)[1];
+    if (afterThinking) {
+      // Look for stance transition line (e.g. "BULLISH - " or "[BULLISH]" or "**BULLISH**" or "**Stance:**")
+      const stanceMarker = /(?:(?:\n\s*---\s*\n|\n\n+)(?=(?:\[?(?:BULLISH|BEARISH|NEUTRAL)\]?|(?:\*\*|#+)?(?:Stance|Rating|Verdict):?))|(?:\n\n)(?=[A-Z][a-zA-Z\s]{0,25}(?:–|-|:)\s*[A-Z]))([\s\S]+)/i.exec(afterThinking);
+      if (stanceMarker && stanceMarker[1] && stanceMarker[1].trim().length > 10) {
+        return stanceMarker[1].trim();
+      }
+
+      // Check if there is a paragraph ending with "Invest at your own risk" that isn't part of instructions
+      const paragraphs = afterThinking.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+      const answerPara = paragraphs.reverse().find(p => 
+        (p.includes('Invest at your own risk') || p.includes('⚠️')) && 
+        !/^we need to /i.test(p) && 
+        !/^\d+\.\s*\*\*/.test(p) &&
+        !/^user asks/i.test(p)
+      );
+      if (answerPara) {
+        return answerPara.trim();
+      }
+
+      // If no valid response was produced (model cut off while thinking)
+      cleaned = '';
+    }
+  }
+
+  // 4. Strip prompt-reflection / meta-planning text (e.g. 'We need to respond with... The user asks: ...')
+  if (/^we need to (?:respond|output)/i.test(cleaned) || /^user (?:query|asks):/i.test(cleaned)) {
+    const parts = cleaned.split(/\n\n+/);
+    const validParts = parts.filter(p => 
+      !/^we need to/i.test(p) && 
+      !/^the user asks/i.test(p) && 
+      !/^user (?:query|asks):/i.test(p) &&
+      !/^\d+\.\s*\*\*/.test(p) &&
+      !/they want a verdict/i.test(p)
+    );
+    if (validParts.length > 0 && validParts.join('\n\n').length > 15) {
+      cleaned = validParts.join('\n\n').trim();
+    } else {
+      cleaned = '';
+    }
+  }
+
+  // 5. Strip leading numbered thinking steps if they appear at the start (e.g. '1. **Analyze User Input:**')
+  if (/^1\.\s*\*\*Analyze User Input/i.test(cleaned) || /^1\.\s*\*\*(?:Understand|Examine|Deconstruct)/i.test(cleaned)) {
+    const nonThinking = cleaned.split(/\n\n+/).filter(p => !/^\d+\.\s*\*\*/.test(p));
+    if (nonThinking.length > 0 && nonThinking.join('\n\n').length > 15) {
+      cleaned = nonThinking.join('\n\n').trim();
+    } else {
+      cleaned = '';
+    }
+  }
+
+  return cleaned.trim();
 };
 
 export const askAiChat = async (symbol, chatHistory, stockData, pageContext = "", livePageData = "") => {
@@ -161,19 +228,19 @@ Always end with: ⚠️ Invest at your own risk.`;
         return m;
       });
 
-      // Responsive free models on OpenRouter
+      // Responsive free models on OpenRouter (favor clean instruction-tuned models)
       const candidateModels = [
-        'dots-studio/dots-3-note-preview:free',
+        'google/gemma-4-31b-it:free',
+        'nvidia/nemotron-3-ultra-550b-a55b:free',
         'openrouter/free',
-        'poolside/laguna-xs-2.1:free',
-        'poolside/laguna-s-2.1:free',
-        'nvidia/nemotron-3.5-lightning:free'
+        'nvidia/nemotron-3.5-lightning:free',
+        'dots-studio/dots-3-note-preview:free'
       ];
 
       for (const modelId of candidateModels) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 7000); // 7-second strict timeout per model
+          const timeoutId = setTimeout(() => controller.abort(), 9000); // 9-second timeout per model
 
           const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
@@ -186,7 +253,9 @@ Always end with: ⚠️ Invest at your own risk.`;
             body: JSON.stringify({
               model: modelId,
               messages: messages,
-              max_tokens: 650,
+              max_tokens: 1000,
+              temperature: 0.3,
+              include_reasoning: false
             }),
             signal: controller.signal
           });
@@ -230,15 +299,15 @@ export const getActiveApiKey = () => {
 
 export const REAL_BENCHMARK_MODELS = [
   {
-    id: 'poolside/laguna-xs-2.1:free',
+    id: 'google/gemma-4-31b-it:free',
     name: 'Poolside Laguna XS 2.1',
     provider: 'Poolside',
     architecture: 'Financial Micro-LLM',
     avatarColor: 'bg-purple-600',
-    fallbackModel: 'dots-studio/dots-3-note-preview:free'
+    fallbackModel: 'openrouter/free'
   },
   {
-    id: 'poolside/laguna-s-2.1:free',
+    id: 'nvidia/nemotron-3-ultra-550b-a55b:free',
     name: 'Poolside Laguna S 2.1',
     provider: 'Poolside',
     architecture: 'High-Capacity Reasoning',
@@ -251,7 +320,7 @@ export const REAL_BENCHMARK_MODELS = [
     provider: 'NVIDIA',
     architecture: 'High-Throughput Reasoning',
     avatarColor: 'bg-teal-600',
-    fallbackModel: 'dots-studio/dots-3-note-preview:free'
+    fallbackModel: 'nvidia/nemotron-3-ultra-550b-a55b:free'
   },
   {
     id: 'dots-studio/dots-3-note-preview:free',
@@ -264,10 +333,10 @@ export const REAL_BENCHMARK_MODELS = [
 ];
 
 export const ALTERNATIVE_MODELS_LIST = [
-  { id: 'dots-studio/dots-3-note-preview:free', name: 'Dots Note 3 (Fast)' },
   { id: 'openrouter/free', name: 'OpenRouter Smart Free Router' },
-  { id: 'poolside/laguna-s-2.1:free', name: 'Poolside Laguna S 2.1' },
-  { id: 'nvidia/nemotron-3.5-lightning:free', name: 'NVIDIA Nemotron 3.5' }
+  { id: 'google/gemma-4-31b-it:free', name: 'Google Gemma 4 31B (Fast)' },
+  { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'NVIDIA Nemotron 3 Ultra 550B' },
+  { id: 'dots-studio/dots-3-note-preview:free', name: 'Dots Note 3' }
 ];
 
 export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stockData, apiKey, overrideModelId = null) => {
@@ -287,14 +356,27 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
   if (isGeneralPrompt) {
     userContent = cleanPrompt;
   } else {
-    userContent = `${cleanPrompt || `Give your equity rating and investment analysis on ${symbol || 'this stock'}.`}\n\n${stockContext ? `Market Context: ${stockContext}` : ''}\n\nProvide 2-3 concise sentences with an explicit verdict stance: [BULLISH, BEARISH, or NEUTRAL] and brief fundamental justification. Do not output code or tool calls. End with: ⚠️ Invest at your own risk.`;
+    userContent = `[DIRECTIVE: Provide ONLY your direct final investment recommendation in 2-3 concise sentences. DO NOT output any internal thinking process, reasoning steps, or notes.]\n\nUser Question: ${cleanPrompt || `Give your equity rating and investment analysis on ${symbol || 'this stock'}.`}\n${stockContext ? `Market Context: ${stockContext}\n` : ''}\nFormat: [BULLISH, BEARISH, or NEUTRAL] - [Brief fundamental reason]. End with: ⚠️ Invest at your own risk.`;
   }
+
+  const systemContent = "You are an institutional equity analyst in Smart Investment Dashboard. Provide ONLY your final, concise verdict and analysis in 2-3 sentences. Absolutely NEVER output any thinking process, internal reasoning, scratchpad, or planning steps. Begin directly with your stance ([BULLISH], [BEARISH], or [NEUTRAL]).";
 
   const makeSingleCall = async (modelId) => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10s per candidate
+    const timeout = setTimeout(() => controller.abort(), 12000); // 12s per candidate
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      const payload = {
+        model: modelId,
+        messages: [
+          { role: 'system', content: systemContent },
+          { role: 'user', content: userContent }
+        ],
+        max_tokens: 1000,
+        temperature: 0.25,
+        include_reasoning: false
+      };
+
+      let response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -302,13 +384,26 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
           'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173',
           'X-Title': 'Smart Investment Dashboard'
         },
-        body: JSON.stringify({
-          model: modelId,
-          messages: [{ role: 'user', content: userContent }],
-          max_tokens: 650,
-        }),
+        body: JSON.stringify(payload),
         signal: controller.signal
       });
+
+      // If a model rejects 'system' role with 400, retry with single user role
+      if (response && response.status === 400) {
+        payload.messages = [{ role: 'user', content: `${systemContent}\n\n${userContent}` }];
+        response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey.trim()}`,
+            'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173',
+            'X-Title': 'Smart Investment Dashboard'
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+      }
+
       clearTimeout(timeout);
       return response;
     } catch (err) {
@@ -322,7 +417,8 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
   const candidates = [
     primaryId,
     overrideModelId ? 'openrouter/free' : modelInfo.fallbackModel,
-    'dots-studio/dots-3-note-preview:free',
+    'nvidia/nemotron-3-ultra-550b-a55b:free',
+    'google/gemma-4-31b-it:free',
     'openrouter/free'
   ].filter(Boolean);
 
@@ -351,8 +447,10 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
                 "";
         }
 
-        const rawContent = cleanModelOutput(raw) || raw;
-        if (rawContent && rawContent.trim().length > 2) {
+        // Clean out any thinking process or chain-of-thought artifacts
+        const rawContent = cleanModelOutput(raw);
+        // Note: Do NOT fall back to uncleaned raw if it was stripped (since stripped means pure thinking)
+        if (rawContent && rawContent.trim().length > 10) {
           successfulData = {
             content: rawContent.trim(),
             tokens: data.usage?.total_tokens || null,
@@ -361,7 +459,7 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
           modelActuallyUsed = data.model || candidateId;
           break;
         } else {
-          lastErrorMsg = 'Empty output returned from model.';
+          lastErrorMsg = 'Model generated reasoning steps without a direct response.';
         }
       } else if (res) {
         const errJson = await res.json().catch(() => ({}));
