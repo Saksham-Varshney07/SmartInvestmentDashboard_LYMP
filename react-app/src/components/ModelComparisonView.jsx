@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { REAL_BENCHMARK_MODELS, querySingleModelOpenRouter, getActiveApiKey } from '../services/aiService';
+import ModelTrajectoryGraph from './ModelTrajectoryGraph';
 
 export default function ModelComparisonView({
   symbol,
@@ -60,6 +61,7 @@ export default function ModelComparisonView({
 
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'bullish', 'cautious'
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'graph'
 
   const apiKey = getActiveApiKey();
 
@@ -284,51 +286,80 @@ export default function ModelComparisonView({
           </div>
         )}
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 mt-2.5">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-all ${
-              activeTab === 'all'
-                ? 'bg-blue-600 text-white'
-                : isLightModal
-                  ? 'bg-slate-200 text-slate-700'
-                  : 'bg-slate-700 text-slate-300'
-            }`}
-          >
-            All Models ({REAL_BENCHMARK_MODELS.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('bullish')}
-            className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-all ${
-              activeTab === 'bullish'
-                ? 'bg-emerald-600 text-white'
-                : isLightModal
-                  ? 'bg-slate-200 text-slate-700'
-                  : 'bg-slate-700 text-slate-300'
-            }`}
-          >
-            Bullish ({bullishCount})
-          </button>
-          <button
-            onClick={() => setActiveTab('cautious')}
-            className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-all ${
-              activeTab === 'cautious'
-                ? 'bg-amber-600 text-white'
-                : isLightModal
-                  ? 'bg-slate-200 text-slate-700'
-                  : 'bg-slate-700 text-slate-300'
-            }`}
-          >
-            Cautious / Neutral ({successfulList.length - bullishCount})
-          </button>
+        {/* Filter Pills & View Switcher */}
+        <div className="flex items-center justify-between gap-2 mt-2.5 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => { setActiveTab('all'); setViewMode('cards'); }}
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-all ${
+                viewMode === 'cards' && activeTab === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : isLightModal
+                    ? 'bg-slate-200 text-slate-700'
+                    : 'bg-slate-700 text-slate-300'
+              }`}
+            >
+              All Models ({REAL_BENCHMARK_MODELS.length})
+            </button>
+            <button
+              onClick={() => { setActiveTab('bullish'); setViewMode('cards'); }}
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-all ${
+                viewMode === 'cards' && activeTab === 'bullish'
+                  ? 'bg-emerald-600 text-white'
+                  : isLightModal
+                    ? 'bg-slate-200 text-slate-700'
+                    : 'bg-slate-700 text-slate-300'
+              }`}
+            >
+              Bullish ({bullishCount})
+            </button>
+            <button
+              onClick={() => { setActiveTab('cautious'); setViewMode('cards'); }}
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-all ${
+                viewMode === 'cards' && activeTab === 'cautious'
+                  ? 'bg-amber-600 text-white'
+                  : isLightModal
+                    ? 'bg-slate-200 text-slate-700'
+                    : 'bg-slate-700 text-slate-300'
+              }`}
+            >
+              Cautious / Neutral ({successfulList.length - bullishCount})
+            </button>
+          </div>
+
+          {/* Mentor-Suggested Feature: "Visualize Graphs" Button */}
+          {(successfulList.length > 0 || hasRunQuery) && (
+            <button
+              onClick={() => setViewMode(viewMode === 'cards' ? 'graph' : 'cards')}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-sm shrink-0"
+              title="Compare all models' price trajectory curves against each other with XGBoost trust scoring"
+            >
+              <span className="material-symbols-outlined text-[14px]">
+                {viewMode === 'graph' ? 'view_agenda' : 'show_chart'}
+              </span>
+              <span>
+                {viewMode === 'graph' ? 'View Model Cards' : 'Visualize Graphs'}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Model Cards List (Live OpenRouter Responses) */}
-      <div className={`flex-1 overflow-y-auto p-3.5 ${
-        isLightModal ? 'scrollbar-ai-light bg-slate-50/50' : 'scrollbar-ai-dark bg-slate-900'
-      }`}>
+      {/* Dynamic View: Model Cards OR Trajectory Graph */}
+      {viewMode === 'graph' ? (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ModelTrajectoryGraph
+            symbol={activeSymbol}
+            stockData={stockData}
+            modelResults={modelResults}
+            isLightModal={isLightModal}
+            onBackToCards={() => setViewMode('cards')}
+          />
+        </div>
+      ) : (
+        <div className={`flex-1 overflow-y-auto p-3.5 ${
+          isLightModal ? 'scrollbar-ai-light bg-slate-50/50' : 'scrollbar-ai-dark bg-slate-900'
+        }`}>
         {!apiKey && (
           <div className="p-3 mb-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center text-xs text-amber-400">
             <span className="material-symbols-outlined text-xl mb-1 text-amber-400">vpn_key_alert</span>
@@ -520,6 +551,7 @@ export default function ModelComparisonView({
           </div>
         )}
       </div>
+    )}
 
       {/* Footer Actions */}
       <div className={`p-3 border-t flex items-center justify-center text-xs ${
