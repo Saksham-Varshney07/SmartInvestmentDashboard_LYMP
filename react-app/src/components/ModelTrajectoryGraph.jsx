@@ -18,7 +18,7 @@ export default function ModelTrajectoryGraph({
   isLightModal,
   onBackToCards
 }) {
-  const activeSymbol = symbol || 'RELIANCE.NS';
+  const activeSymbol = symbol || stockData?.symbol || '';
   const [historicalData, setHistoricalData] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [quantData, setQuantData] = useState(stockData || null);

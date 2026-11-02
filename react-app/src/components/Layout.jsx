@@ -6,7 +6,7 @@ import AskAiModal from './AskAiModal';
 
 export default function Layout({ children }) {
   const { currentUser, setCurrentUser } = useContext(AuthContext);
-  const { aiPageData } = useContext(AiContext);
+  const { aiPageData, activeStockData, activeStockSymbol } = useContext(AiContext);
   const [loginForm, setLoginForm] = useState({ username: '', full_name: '', risk_profile: 'Balanced', investment_horizon: 'Medium-term' });
   const [isSignup, setIsSignup] = useState(false);
   
@@ -300,23 +300,39 @@ export default function Layout({ children }) {
       )}
 
       {/* Global Ask AI Modal */}
-      {showAiModal && (
-        <AskAiModal 
-          symbol={location.pathname.startsWith('/search/') ? location.pathname.split('/search/')[1] : null}
-          pageContext={
-            location.pathname === '/' ? 'Dashboard' :
-            location.pathname === '/riskanalysis' ? 'Risk Analysis Portfolio Simulator' :
-            location.pathname === '/portfolio' ? 'Live Portfolio Tracking' :
-            (location.pathname === '/sectors' || location.pathname === '/screener') ? 'Sector Comparison & Fundamental Screener' :
-            location.pathname === '/sipplanner' ? 'SIP Planner' :
-            location.pathname === '/assetexplorer' ? 'Asset Explorer' :
-            location.pathname.startsWith('/search/') ? 'Stock Search / Analysis' :
-            'Navigation'
-          }
-          livePageData={aiPageData}
-          onClose={() => setShowAiModal(false)}
-        />
-      )}
+      {showAiModal && (() => {
+        const urlSymbol = location.pathname.startsWith('/search/')
+          ? decodeURIComponent(location.pathname.replace(/^\/search\/?/, '').split('/')[0].split('?')[0]).trim()
+          : '';
+        const currentActiveSymbol = urlSymbol || activeStockSymbol || activeStockData?.symbol || null;
+        const currentActiveData = (activeStockData && activeStockData.symbol === currentActiveSymbol)
+          ? activeStockData
+          : (currentActiveSymbol ? {
+              symbol: currentActiveSymbol,
+              name: currentActiveSymbol.replace(/\.(NS|BO)$/i, ''),
+              company_name: currentActiveSymbol.replace(/\.(NS|BO)$/i, ''),
+              currency: currentActiveSymbol.endsWith('.NS') ? '₹' : '$'
+            } : null);
+
+        return (
+          <AskAiModal 
+            symbol={currentActiveSymbol}
+            stockData={currentActiveData}
+            pageContext={
+              location.pathname === '/' ? 'Dashboard' :
+              location.pathname === '/riskanalysis' ? 'Risk Analysis Portfolio Simulator' :
+              location.pathname === '/portfolio' ? 'Live Portfolio Tracking' :
+              (location.pathname === '/sectors' || location.pathname === '/screener') ? 'Sector Comparison & Fundamental Screener' :
+              location.pathname === '/sipplanner' ? 'SIP Planner' :
+              location.pathname === '/assetexplorer' ? 'Asset Explorer' :
+              location.pathname.startsWith('/search/') ? 'Stock Search / Analysis' :
+              'Navigation'
+            }
+            livePageData={aiPageData}
+            onClose={() => setShowAiModal(false)}
+          />
+        );
+      })()}
     </div>
   );
 }

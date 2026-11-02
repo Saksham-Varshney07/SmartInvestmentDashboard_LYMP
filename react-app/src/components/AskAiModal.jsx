@@ -9,6 +9,21 @@ export default function AskAiModal({ symbol, stockData, pageContext, livePageDat
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState('chat'); // 'chat' or 'compare'
   const [showKeyInput, setShowKeyInput] = useState(false);
+
+  // Maintain active stock context across all chat and comparison turns
+  const [activeSymbol, setActiveSymbol] = useState(symbol || stockData?.symbol || '');
+  const [activeStock, setActiveStock] = useState(stockData || null);
+
+  useEffect(() => {
+    setActiveSymbol(symbol || stockData?.symbol || '');
+  }, [symbol]);
+
+  useEffect(() => {
+    setActiveStock(stockData || null);
+    if (stockData?.symbol) {
+      setActiveSymbol(stockData.symbol);
+    }
+  }, [stockData]);
   const [customKey, setCustomKey] = useState(() => {
     return localStorage.getItem('openRouterApiKey') || '';
   });
@@ -61,17 +76,39 @@ export default function AskAiModal({ symbol, stockData, pageContext, livePageDat
     }
   }, [messages, isLoading, viewMode]);
 
+  // Extract stock ticker from user message if they mention a specific stock
+  // Extract stock ticker from user message if they mention an explicit ticker
+  const extractTicker = (text) => {
+    if (!text) return null;
+    const match = text.match(/\b([A-Z0-9_\-]{2,15}\.(?:NS|BO))\b/i);
+    if (match) {
+      return match[1].toUpperCase();
+    }
+    return null;
+  };
+
   const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
 
-    const userMsg = { role: 'user', content: input.trim() };
+    const trimmedInput = input.trim();
+    const detectedTicker = extractTicker(trimmedInput);
+    const resolvedSymbol = detectedTicker || activeSymbol || symbol;
+    if (detectedTicker && detectedTicker !== activeSymbol) {
+      setActiveSymbol(detectedTicker);
+    }
+
+    const currentStockContext = (detectedTicker && detectedTicker !== (activeStock?.symbol || activeSymbol))
+      ? { symbol: detectedTicker, name: detectedTicker.replace(/\.(NS|BO)$/i, ''), company_name: detectedTicker.replace(/\.(NS|BO)$/i, '') }
+      : (activeStock || stockData);
+
+    const userMsg = { role: 'user', content: trimmedInput };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput('');
     setIsLoading(true);
 
-    const answer = await askAiChat(symbol, newMessages, stockData, pageContext, livePageData);
+    const answer = await askAiChat(resolvedSymbol, newMessages, currentStockContext, pageContext, livePageData);
 
     setMessages([...newMessages, { role: 'assistant', content: answer }]);
     setIsLoading(false);
@@ -215,9 +252,10 @@ export default function AskAiModal({ symbol, stockData, pageContext, livePageDat
     }));
   };
 
-  const titleText = symbol ? `Ask AI about ${symbol}` : 'Ask AInvestor';
-  const welcomeText = symbol
-    ? `Ask anything about ${symbol}. I can analyze real-time market data or compare viewpoints across multiple AI models.`
+  const currentTicker = activeSymbol || symbol;
+  const titleText = currentTicker ? `Ask AI about ${currentTicker}` : 'Ask AInvestor';
+  const welcomeText = currentTicker
+    ? `Ask anything about ${currentTicker}. I can analyze real-time market data or compare viewpoints across multiple AI models.`
     : 'Ask me anything about your portfolio, risk analysis, or compare recommendations across multiple AI architectures!';
 
   return (
@@ -305,10 +343,12 @@ export default function AskAiModal({ symbol, stockData, pageContext, livePageDat
         </div>
 
         {/* Header */}
-              ? 'bg-slate-50 border-slate-200'
-              : 'bg-slate-800/95 border-slate-700'
-            }`}>
-              <div className="flex items-center gap-2 min-w-0 relative z-30">
+        <div className={`p-3 px-3.5 border-b flex justify-between items-center transition-colors relative z-30 select-none ${
+          isLightModal
+            ? 'bg-slate-50 border-slate-200'
+            : 'bg-slate-800/95 border-slate-700'
+        }`}>
+          <div className="flex items-center gap-2 min-w-0 relative z-30">
                 {viewMode === 'compare' ? (
                   <button
                     onClick={() => setViewMode('chat')}
@@ -462,8 +502,8 @@ export default function AskAiModal({ symbol, stockData, pageContext, livePageDat
               {/* Dynamic View: Model Comparison and Chat Area kept mounted to retain conversation and streaming state */}
               <div className={`flex-1 flex flex-col min-h-0 ${viewMode === 'compare' ? 'flex' : 'hidden'}`}>
                 <ModelComparisonView
-                  symbol={symbol}
-                  stockData={stockData}
+                  symbol={activeSymbol || symbol}
+                  stockData={activeStock || stockData}
                   pageContext={pageContext}
                   isPageDark={isPageDark}
                   isExpanded={isExpanded || dimensions.width >= 640}
@@ -555,7 +595,7 @@ export default function AskAiModal({ symbol, stockData, pageContext, livePageDat
                       type="text"
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder="Ask about this stock or market..."
+                      placeholder={currentTicker ? `Ask about ${currentTicker} (e.g. "How is it performing?", "Is it a good buy?")...` : "Ask about this stock, portfolio, or market..."}
                       className={`flex-1 rounded-xl px-4 py-2 text-xs sm:text-sm outline-none border transition-colors ${isLightModal
                           ? 'bg-slate-100 border-slate-200 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white'
                           : 'bg-slate-900 border-slate-700 text-white placeholder-slate-400 focus:border-blue-500'

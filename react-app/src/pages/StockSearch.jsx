@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+import { AiContext } from '../context/AiContext';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function StockSearch() {
@@ -14,6 +15,7 @@ export default function StockSearch() {
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [intradayData, setIntradayData] = useState({});
   const { currentUser } = useContext(AuthContext);
+  const { setAiPageData, setActiveStockData, setActiveStockSymbol } = useContext(AiContext);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -37,7 +39,59 @@ export default function StockSearch() {
     if (stockname) fetchData();
   }, [stockname]);
 
-  // Dynamic high-resolution fetch for Day-Trader views (1D & 1W)
+  useEffect(() => {
+    if (stockname) {
+      setActiveStockSymbol(stockname);
+      setActiveStockData({
+        symbol: stockname,
+        name: stockname.replace(/\.(NS|BO)$/i, ''),
+        company_name: stockname.replace(/\.(NS|BO)$/i, ''),
+        currency: stockname.endsWith('.NS') ? '₹' : '$'
+      });
+    }
+    return () => {
+      setActiveStockSymbol('');
+      setActiveStockData(null);
+    };
+  }, [stockname, setActiveStockSymbol, setActiveStockData]);
+
+  useEffect(() => {
+    if (!data || !stockname) return;
+
+    const f = data.fundamentals || {};
+    const a = data.analysis || {};
+    const hist = data.history || [];
+    const latestClose = hist.length > 0 ? hist[hist.length - 1].close : (f.current_price || 0);
+    const startClose = hist.length > 1 ? hist[hist.length - 2].close : latestClose;
+    const dayChange = startClose ? ((latestClose - startClose) / startClose) * 100 : (f.day_change || 0);
+
+    const stockDetails = {
+      symbol: stockname,
+      name: data.name || f.company_name || f.name || stockname.replace('.NS', ''),
+      company_name: data.name || f.company_name || f.name || stockname.replace('.NS', ''),
+      latest_price: latestClose,
+      returns: dayChange,
+      currency: stockname.endsWith('.NS') ? '₹' : '$',
+      pe_ratio: f.pe_ratio,
+      market_cap: f.market_cap,
+      sector: f.sector,
+      high_52w: f.high_52w,
+      low_52w: f.low_52w,
+      risk: a.risk || 'Moderate',
+      stability: a.stability,
+      volatility: a.volatility,
+      recommendation: a.recommendation
+    };
+
+    setActiveStockData(stockDetails);
+
+    let summary = `ACTIVE STOCK ON SCREEN: ${stockname} (${stockDetails.name})\n`;
+    summary += `Current Market Price: ${stockDetails.currency}${latestClose} (${dayChange >= 0 ? '+' : ''}${dayChange.toFixed(2)}% today)\n`;
+    if (f.sector) summary += `Sector: ${f.sector}, P/E: ${f.pe_ratio || 'N/A'}\n`;
+    if (f.high_52w) summary += `52-Week Channel: ${stockDetails.currency}${f.low_52w} - ${stockDetails.currency}${f.high_52w}\n`;
+    if (a.risk) summary += `Quantitative Risk Rating: ${a.risk}, Stability: ${a.stability || 'Stable'}\n`;
+    setAiPageData(summary);
+  }, [data, stockname, setAiPageData, setActiveStockData]);
   useEffect(() => {
     const fetchIntraday = async () => {
       if ((timeRange === '1D' || timeRange === '1W') && stockname && !intradayData[timeRange]) {

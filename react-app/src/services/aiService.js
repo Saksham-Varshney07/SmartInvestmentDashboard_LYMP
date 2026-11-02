@@ -54,13 +54,16 @@ const generateSmartFallbackAnswer = (symbol, chatHistory, stockData, pageContext
   }
   // 7. Stock-specific questions (dynamic and intent-aware)
   else if (symbol || stockData) {
-    const stockName = symbol || 'this stock';
+    const rawName = stockData?.company_name || stockData?.name || '';
+    const cleanSym = symbol ? symbol.replace(/\.(NS|BO)$/i, '') : '';
+    const stockName = rawName ? `${rawName} (${symbol || cleanSym})` : (symbol || 'this stock');
     const isInvestQuery = query.includes('invest') || query.includes('buy') || query.includes('purchase') || query.includes('good time');
     const isRiskQuery = query.includes('risk') || query.includes('safe') || query.includes('danger') || query.includes('drawdown');
     const isTargetQuery = query.includes('target') || query.includes('future') || query.includes('price') || query.includes('prediction') || query.includes('outlook');
     const isSellQuery = query.includes('sell') || query.includes('exit') || query.includes('cut') || query.includes('loss');
+    const isPerfQuery = query.includes('perform') || query.includes('doing') || query.includes('trend') || query.includes('status') || query.includes('how is');
 
-    if (stockData) {
+    if (stockData && stockData.latest_price) {
       const price = stockData.latest_price || 0;
       const change = stockData.returns || 0;
       const currency = stockData.currency || (symbol?.endsWith('.NS') ? '₹' : '$');
@@ -75,6 +78,8 @@ const generateSmartFallbackAnswer = (symbol, chatHistory, stockData, pageContext
       } else if (isTargetQuery) {
         const estTarget = (price * (isPositive ? 1.12 : 1.08)).toFixed(1);
         answer = `Quantitative price action models project a 3-month upside horizon toward ${currency}${estTarget} for ${stockName}, backed by solid sector liquidity.`;
+      } else if (isPerfQuery) {
+        answer = `${stockName} is trading at ${currency}${price} (${isPositive ? '+' : ''}${change.toFixed(2)}% today). Price action and technical indicators show ${isPositive ? 'resilient buyer accumulation' : 'mild consolidation'}, in line with broader sector sentiment.`;
       } else {
         answer = `${stockName} is trading at ${currency}${price} (${isPositive ? '+' : ''}${change.toFixed(2)}% today). Fundamentals indicate healthy institutional interest with sound balance sheet liquidity.`;
       }
@@ -88,6 +93,8 @@ const generateSmartFallbackAnswer = (symbol, chatHistory, stockData, pageContext
         answer = `Sector consensus projects an estimated 10-15% annual return potential for ${stockName}, assuming benchmark indices sustain support above key moving averages.`;
       } else if (isSellQuery) {
         answer = `For ${stockName}, consider trailing a stop-loss 5% below its recent swing low. If your investment thesis remains intact, holding through consolidation is recommended.`;
+      } else if (isPerfQuery) {
+        answer = `Analysis on ${stockName}: The company demonstrates resilient operational performance and strong market capitalization. Technical indicators show healthy institutional positioning.`;
       } else {
         answer = `Analysis on ${stockName}: The company demonstrates resilient operational metrics and strong market presence. Momentum and volume profiles indicate favorable risk-adjusted positioning.`;
       }
@@ -195,24 +202,34 @@ export const askAiChat = async (symbol, chatHistory, stockData, pageContext = ""
                    localStorage.getItem('openRouterApiKey') || 
                    localStorage.getItem('openrouter_api_key');
 
+    const targetSymbol = (symbol || stockData?.symbol || '').trim();
+    const rawCompanyName = stockData?.company_name || stockData?.name || '';
+    const cleanName = rawCompanyName || (targetSymbol ? targetSymbol.replace(/\.(NS|BO)$/i, '') : '');
+    const companyLabel = cleanName ? `${cleanName} (${targetSymbol})` : targetSymbol;
+
     if (apiKey && apiKey.trim() !== '' && apiKey !== 'YOUR_API_KEY') {
       let stockContext = "";
-      if (stockData) {
-        const price = stockData.latest_price || 0;
-        const change = stockData.returns || 0;
-        const currency = stockData.currency || (symbol?.endsWith('.NS') ? '₹' : '$');
-        const high = stockData.day_high || (price * 1.01);
-        const low = stockData.day_low || (price * 0.99);
-        stockContext = `CURRENT DATA FOR ${symbol}: Price ${currency}${price}, Change ${change.toFixed(2)}%, High ${currency}${high.toFixed(2)}, Low ${currency}${low.toFixed(2)}. `;
+      if (targetSymbol) {
+        const price = stockData?.latest_price || stockData?.price || 0;
+        const change = stockData?.returns ?? stockData?.change ?? 0;
+        const currency = stockData?.currency || (targetSymbol.endsWith('.NS') ? '₹' : '$');
+        const high = stockData?.day_high || (price ? price * 1.01 : 0);
+        const low = stockData?.day_low || (price ? price * 0.99 : 0);
+        stockContext = `CURRENT ACTIVE STOCK DATA FOR ${companyLabel}: Price ${currency}${price}, Change ${Number(change) >= 0 ? '+' : ''}${typeof change === 'number' ? change.toFixed(2) : change}%, High ${currency}${typeof high === 'number' ? high.toFixed(2) : high}, Low ${currency}${typeof low === 'number' ? low.toFixed(2) : low}. `;
+        if (stockData?.pe_ratio) stockContext += `P/E Ratio: ${stockData.pe_ratio}. `;
+        if (stockData?.sector) stockContext += `Sector: ${stockData.sector}. `;
+        if (stockData?.risk) stockContext += `Risk Level: ${stockData.risk}. `;
       }
 
       const contextStr = pageContext ? `Screen Context: ${pageContext}.\n` : "";
-      const symbolStr = symbol ? `Stock: ${symbol}.\n` : "";
+      const symbolStr = targetSymbol 
+        ? `Active Target Stock: ${companyLabel}.\nIMPORTANT CONTEXT INSTRUCTION: When the user asks "how is this stock performing?", "is it a good buy?", "what are its risks?", "should I buy it?", or uses pronouns like "this stock", "this company", "it", or "its", they are explicitly asking about ${companyLabel}. Never ask the user to specify the ticker or company name — answer directly for ${companyLabel}.\n`
+        : "";
       const liveDataHeader = livePageData 
         ? `\n--- LIVE METRICS FROM USER'S CURRENT SCREEN ---\n${livePageData}\n----------------------------------------------\nIMPORTANT: Use the specific numbers, stock pairs, and blueprint allocations in the screen data above to answer the user's question directly. Do NOT assume holdings or allocations are 0.00% if simulated blueprint data is provided.\n`
         : "";
 
-      const promptDirective = `You are AInvestor, an expert AI financial advisor in Smart Invest 360.
+      const promptDirective = `You are AInvestor, an expert institutional AI financial advisor in Smart Invest 360.
 ${contextStr}${symbolStr}${stockContext}${liveDataHeader}
 Answer the user's question clearly, informatively, and directly in 2-4 sentences using the live data on screen.
 Always end with: ⚠️ Invest at your own risk.`;
@@ -341,25 +358,55 @@ export const ALTERNATIVE_MODELS_LIST = [
 
 export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stockData, apiKey, overrideModelId = null) => {
   const startTime = performance.now();
+  const cleanPrompt = (prompt || '').trim();
+
+  // Resolve active symbol & clean company name
+  const targetSymbol = (symbol || stockData?.symbol || '').trim();
+  const rawCompanyName = stockData?.company_name || stockData?.name || '';
+  const cleanName = rawCompanyName || (targetSymbol ? targetSymbol.replace(/\.(NS|BO)$/i, '') : '');
+  const companyLabel = cleanName ? `${cleanName} (${targetSymbol})` : targetSymbol;
+
   let stockContext = "";
-  if (stockData) {
-    const price = stockData.latest_price || 0;
-    const change = stockData.returns || 0;
-    const currency = stockData.currency || (symbol?.endsWith('.NS') ? '₹' : '$');
-    stockContext = `Stock price: ${currency}${price}, Today's Return: ${change >= 0 ? '+' : ''}${change.toFixed(2)}%. `;
+  if (targetSymbol) {
+    const price = stockData?.latest_price || stockData?.price;
+    const change = stockData?.returns ?? stockData?.change;
+    const currency = stockData?.currency || (targetSymbol.endsWith('.NS') ? '₹' : '$');
+    stockContext = `Target Stock Asset: ${companyLabel}.`;
+    if (price !== undefined && price !== null && price > 0) {
+      stockContext += ` Current Market Price: ${currency}${price}`;
+      if (change !== undefined && change !== null) {
+        stockContext += ` (${Number(change) >= 0 ? '+' : ''}${typeof change === 'number' ? change.toFixed(2) : change}% today)`;
+      }
+      stockContext += `.`;
+    }
+    if (stockData?.sector) stockContext += ` Sector: ${stockData.sector}.`;
+    if (stockData?.pe_ratio) stockContext += ` P/E Ratio: ${stockData.pe_ratio}.`;
+    if (stockData?.risk) stockContext += ` Quantitative Risk: ${stockData.risk}.`;
   }
 
-  const cleanPrompt = (prompt || '').trim();
-  const isGeneralPrompt = /^(what is|\d+\s*[\+\-\*\/]|who is|tell me|hello|hi\b|how to|why is|explain|calculate|solve)/i.test(cleanPrompt);
+  // Check if prompt is purely mathematical or greeting with no stock context
+  const isPureMath = /^\s*[\d\.\s\+\-\*\/\(\)\^]+\s*$/.test(cleanPrompt);
+  const isPureGreeting = /^(hello|hi|hey|greetings)$/i.test(cleanPrompt);
+  const isGeneralPrompt = isPureMath || isPureGreeting;
 
   let userContent = "";
-  if (isGeneralPrompt) {
+  if (isPureMath || isPureGreeting) {
     userContent = cleanPrompt;
   } else {
-    userContent = `[DIRECTIVE: Provide ONLY your direct final investment recommendation in 2-3 concise sentences. DO NOT output any internal thinking process, reasoning steps, or notes.]\n\nUser Question: ${cleanPrompt || `Give your equity rating and investment analysis on ${symbol || 'this stock'}.`}\n${stockContext ? `Market Context: ${stockContext}\n` : ''}\nFormat: [BULLISH, BEARISH, or NEUTRAL] - [Brief fundamental reason]. End with: ⚠️ Invest at your own risk.`;
+    // If targetSymbol is known and user refers to "this stock", "it", or doesn't mention the ticker name
+    let contextualizedQuestion = cleanPrompt || `Provide your equity recommendation on ${companyLabel || 'this stock'}.`;
+    if (targetSymbol) {
+      const mentionsTicker = cleanPrompt.toLowerCase().includes(targetSymbol.toLowerCase()) || 
+                             (cleanName && cleanPrompt.toLowerCase().includes(cleanName.toLowerCase()));
+      if (!mentionsTicker) {
+        contextualizedQuestion = `Regarding ${companyLabel}: ${cleanPrompt}`;
+      }
+    }
+
+    userContent = `[INSTITUTIONAL DIRECTIVE: You are analyzing ${companyLabel || 'the requested equity'}. Provide ONLY your direct final verdict and rationale in 2-3 concise sentences. DO NOT say "no ticker provided" or ask for a symbol — the target asset on screen is ${companyLabel}. Absolutely NEVER output any internal thinking process, reasoning steps, or notes.]\n\n${stockContext ? `Live Market Context: ${stockContext}\n` : ''}User Question: ${contextualizedQuestion}\n\nFormat: [BULLISH, BEARISH, or NEUTRAL] - [Concise fundamental reason for ${companyLabel || 'the stock'}]. End with: ⚠️ Invest at your own risk.`;
   }
 
-  const systemContent = "You are an institutional equity analyst in Smart Investment Dashboard. Provide ONLY your final, concise verdict and analysis in 2-3 sentences. Absolutely NEVER output any thinking process, internal reasoning, scratchpad, or planning steps. Begin directly with your stance ([BULLISH], [BEARISH], or [NEUTRAL]).";
+  const systemContent = `You are an institutional equity analyst in Smart Investment Dashboard.${targetSymbol ? ` The user is actively viewing and analyzing ${companyLabel}. All questions like "how is this stock performing?" refer directly to ${companyLabel}.` : ''} Provide ONLY your final, concise verdict and analysis in 2-3 sentences. Absolutely NEVER output any thinking process, internal reasoning, scratchpad, or planning steps. Begin directly with your stance ([BULLISH], [BEARISH], or [NEUTRAL]).`;
 
   const makeSingleCall = async (modelId) => {
     const controller = new AbortController();
