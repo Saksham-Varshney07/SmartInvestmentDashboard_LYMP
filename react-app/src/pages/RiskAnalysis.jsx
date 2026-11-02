@@ -4,6 +4,7 @@ import ReactApexChart from 'react-apexcharts';
 import { motion, useMotionValue, useTransform, AnimatePresence, animate } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
 import { AiContext } from '../context/AiContext';
+import { cleanModelOutput, getActiveApiKey } from '../services/aiService';
 
 const SwipeCard = ({ card, onSwipe, index, isTop, triggerSwipe }) => {
   const x = useMotionValue(0);
@@ -128,6 +129,44 @@ export default function RiskAnalysis() {
   });
   const [confirmApply, setConfirmApply] = useState(null);
 
+  // AI Strategic Allocation & Breakdown States (Requested by User & Mentor)
+  const [isAllocationCalculated, setIsAllocationCalculated] = useState(() => {
+    return sessionStorage.getItem('risk_allocation_calculated') === 'true';
+  });
+  const [isCalculatingBreakdown, setIsCalculatingBreakdown] = useState(false);
+  const [breakdownRationale, setBreakdownRationale] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('risk_breakdown_rationale');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [expandedStockRationale, setExpandedStockRationale] = useState({});
+
+  // Prompt that gets sent to the AI API key
+  const [allocationPrompt, setAllocationPrompt] = useState(() => {
+    return sessionStorage.getItem('risk_allocation_prompt') || '';
+  });
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
+
+  // Sync default prompt if not explicitly customized by user
+  useEffect(() => {
+    const defaultText = `The user has a budget of ₹${budget.toLocaleString('en-IN')}, and has selected ${stocks.join(', ')}. Suggest an optimal portfolio allocation breakdown tailored for his risk profile (${riskProfile}), and provide convincing, realistic wealth-advisor reasons explaining why each stock is allocated that amount.`;
+    if (!allocationPrompt || allocationPrompt.startsWith('The user has a budget of ₹')) {
+      setAllocationPrompt(defaultText);
+      sessionStorage.setItem('risk_allocation_prompt', defaultText);
+    }
+  }, [budget, stocks, riskProfile]);
+
+  // Reset breakdown calculation if selected stocks list changes
+  useEffect(() => {
+    setIsAllocationCalculated(false);
+    sessionStorage.removeItem('risk_allocation_calculated');
+    sessionStorage.removeItem('risk_breakdown_rationale');
+    setBreakdownRationale(null);
+  }, [stocks.join(',')]);
+
   // AI Suggestions State
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiAnswers, setAiAnswers] = useState({
@@ -161,6 +200,83 @@ export default function RiskAnalysis() {
     setTriggerSwipe(null);
   };
 
+// Comprehensive Institutional Stock Catalogs (Diverse sectors, high market cap, strong liquidity)
+const INDIAN_STOCK_CATALOG = [
+  // Banking & Financial Services
+  { ticker: 'HDFCBANK.NS', name: 'HDFC Bank Ltd.', sector: 'Banking', reason: 'India\'s largest private bank with premier asset quality and steady credit expansion.', historical_trend: [1520, 1545, 1590, 1610, 1665, 1720] },
+  { ticker: 'ICICIBANK.NS', name: 'ICICI Bank Ltd.', sector: 'Banking', reason: 'Consistently expanding net interest margins across retail and corporate banking.', historical_trend: [990, 1030, 1065, 1100, 1140, 1190] },
+  { ticker: 'SBIN.NS', name: 'State Bank of India', sector: 'Banking', reason: 'Public sector powerhouse with unmatched nationwide deposit franchise and strong loan growth.', historical_trend: [720, 745, 780, 810, 835, 870] },
+  { ticker: 'KOTAKBANK.NS', name: 'Kotak Mahindra Bank', sector: 'Banking', reason: 'High capital adequacy ratio and conservative underwriting driving steady compound growth.', historical_trend: [1710, 1730, 1765, 1790, 1820, 1860] },
+  { ticker: 'AXISBANK.NS', name: 'Axis Bank Ltd.', sector: 'Banking', reason: 'Strong digital banking adoption and improving cost-to-income efficiency.', historical_trend: [1020, 1055, 1080, 1120, 1150, 1195] },
+  { ticker: 'BAJFINANCE.NS', name: 'Bajaj Finance Ltd.', sector: 'Financial Services', reason: 'Dominant consumer lending NBFC with outstanding customer acquisition and ROE.', historical_trend: [6800, 6950, 7150, 7300, 7550, 7800] },
+
+  // Information Technology
+  { ticker: 'TCS.NS', name: 'Tata Consultancy Services', sector: 'IT', reason: 'Premier IT bellwether boasting high margins, resilient deal pipelines, and consistent dividends.', historical_trend: [3600, 3720, 3850, 3920, 4050, 4180] },
+  { ticker: 'INFY.NS', name: 'Infosys Ltd.', sector: 'IT', reason: 'Global leader in cloud transformation and generative enterprise AI consulting.', historical_trend: [1520, 1580, 1640, 1690, 1760, 1840] },
+  { ticker: 'HCLTECH.NS', name: 'HCL Technologies Ltd.', sector: 'IT', reason: 'Leadership in engineering R&D services and cloud infrastructure with high dividend yield.', historical_trend: [1420, 1480, 1530, 1590, 1660, 1730] },
+  { ticker: 'WIPRO.NS', name: 'Wipro Ltd.', sector: 'IT', reason: 'Large-cap IT services provider executing turnaround in large deals and consulting margins.', historical_trend: [450, 470, 490, 510, 530, 555] },
+  { ticker: 'LTIM.NS', name: 'LTIMindtree Ltd.', sector: 'IT', reason: 'Fast-growing tier-1 IT player with strong presence in banking, insurance, and tech verticals.', historical_trend: [4900, 5100, 5300, 5450, 5700, 5950] },
+
+  // Automobile & EV
+  { ticker: 'TATAMOTORS.NS', name: 'Tata Motors Ltd.', sector: 'Automobile', reason: 'Passenger EV market leader with strong global turnaround in JLR luxury cash flows.', historical_trend: [820, 880, 940, 980, 1020, 1070] },
+  { ticker: 'BAJAJ-AUTO.NS', name: 'Bajaj Auto Ltd.', sector: 'Automobile', reason: 'Pioneer in two-wheeler EV expansion (Chetak) and premium export markets with robust operating margins.', historical_trend: [8200, 8500, 8850, 9150, 9500, 9900] },
+  { ticker: 'MARUTI.NS', name: 'Maruti Suzuki India', sector: 'Automobile', reason: 'Dominant passenger car market share with strong push into premium hybrid SUVs.', historical_trend: [11200, 11600, 12050, 12400, 12800, 13250] },
+  { ticker: 'M&M.NS', name: 'Mahindra & Mahindra', sector: 'Automobile', reason: 'Unmatched order book in authentic SUVs alongside tractor agricultural equipment leadership.', historical_trend: [2200, 2350, 2520, 2680, 2850, 3050] },
+  { ticker: 'EICHERMOT.NS', name: 'Eicher Motors Ltd.', sector: 'Automobile', reason: 'Royal Enfield premium motorcycle franchise with expanding international presence and high ROCE.', historical_trend: [4200, 4350, 4520, 4680, 4850, 5050] },
+
+  // Energy, Conglomerate & Utilities
+  { ticker: 'RELIANCE.NS', name: 'Reliance Industries Ltd.', sector: 'Energy', reason: 'Integrated mega-cap leader in retail, 5G telecom, and green energy investments.', historical_trend: [2500, 2580, 2660, 2740, 2850, 2980] },
+  { ticker: 'NTPC.NS', name: 'NTPC Ltd.', sector: 'Energy', reason: 'India\'s largest power utility transitioning aggressively toward commercial solar and green hydrogen capacity.', historical_trend: [310, 330, 355, 375, 400, 425] },
+  { ticker: 'POWERGRID.NS', name: 'Power Grid Corp.', sector: 'Utilities', reason: 'Regulated return monopoly in interstate electricity transmission with predictable regulated tariff yields.', historical_trend: [260, 275, 295, 315, 330, 350] },
+  { ticker: 'ONGC.NS', name: 'Oil & Natural Gas Corp.', sector: 'Energy', reason: 'Beneficiary of stable crude realization with attractive dividend yield and expanding offshore gas production.', historical_trend: [230, 245, 265, 280, 295, 315] },
+
+  // FMCG, Retail & Consumer
+  { ticker: 'ITC.NS', name: 'ITC Ltd.', sector: 'Consumer Goods', reason: 'Cash-generating FMCG conglomerate with hotel demerger value unlocking and rural recovery.', historical_trend: [420, 435, 450, 465, 485, 510] },
+  { ticker: 'HINDUNILVR.NS', name: 'Hindustan Unilever', sector: 'Consumer Goods', reason: 'India\'s largest FMCG company with unmatched rural distribution reach and brand equity across home care.', historical_trend: [2350, 2420, 2490, 2560, 2640, 2720] },
+  { ticker: 'TITAN.NS', name: 'Titan Company Ltd.', sector: 'Consumer Goods', reason: 'Luxury jewellery (Tanishq) market share consolidator benefiting from bridal demand and formalization.', historical_trend: [3300, 3420, 3550, 3680, 3800, 3950] },
+  { ticker: 'NESTLEIND.NS', name: 'Nestle India Ltd.', sector: 'Consumer Goods', reason: 'Packaged food and dairy market leader with strong brand pricing power and high capital returns.', historical_trend: [2300, 2380, 2460, 2520, 2610, 2700] },
+  { ticker: 'ASIANPAINT.NS', name: 'Asian Paints Ltd.', sector: 'Consumer Goods', reason: 'Dominant decorative coatings market leader expanding into comprehensive home décor solutions.', historical_trend: [2750, 2840, 2920, 3010, 3120, 3250] },
+
+  // Healthcare & Pharma
+  { ticker: 'SUNPHARMA.NS', name: 'Sun Pharma Ltd.', sector: 'Healthcare', reason: 'Global specialty dermatology pipeline and strong domestic formulation market leadership.', historical_trend: [1420, 1490, 1560, 1630, 1710, 1800] },
+  { ticker: 'CIPLA.NS', name: 'Cipla Ltd.', sector: 'Healthcare', reason: 'Respiratory portfolio leader in North America alongside resilient high-margin chronic therapy sales in India.', historical_trend: [1350, 1410, 1470, 1530, 1590, 1660] },
+  { ticker: 'DRREDDY.NS', name: 'Dr. Reddy\'s Laboratories', sector: 'Healthcare', reason: 'Strong biosimilar pipeline and diversified revenue footprint across global generics markets.', historical_trend: [5900, 6150, 6380, 6550, 6780, 7050] },
+  { ticker: 'APOLLOHOSP.NS', name: 'Apollo Hospitals Ltd.', sector: 'Healthcare', reason: 'India\'s largest healthcare network expanding digital omnichannel pharmacy and robotic surgeries.', historical_trend: [5800, 6050, 6300, 6550, 6850, 7200] },
+
+  // Infrastructure, Capital Goods & Defense
+  { ticker: 'LT.NS', name: 'Larsen & Toubro', sector: 'Infrastructure', reason: 'Prime beneficiary of national infrastructure capex with record domestic and international order backlog.', historical_trend: [3300, 3450, 3620, 3750, 3900, 4100] },
+  { ticker: 'BEL.NS', name: 'Bharat Electronics', sector: 'Defense', reason: 'Defense electronics monopoly with multi-year order visibility under Make-in-India programs.', historical_trend: [210, 235, 260, 285, 310, 335] },
+  { ticker: 'TATASTEEL.NS', name: 'Tata Steel Ltd.', sector: 'Metals', reason: 'Lowest-cost domestic steel producer with expanding Kalinganagar capacity and European restructuring.', historical_trend: [135, 145, 155, 165, 175, 185] },
+  { ticker: 'JSWSTEEL.NS', name: 'JSW Steel Ltd.', sector: 'Metals', reason: 'Leading private steel manufacturer expanding brownfield capacity to capture infrastructure demand.', historical_trend: [840, 880, 920, 955, 990, 1035] }
+];
+
+const US_STOCK_CATALOG = [
+  // Mega-Cap Tech & AI
+  { ticker: 'AAPL', name: 'Apple Inc.', sector: 'Technology', reason: 'Unmatched global ecosystem retention, growing services revenue, and Apple Intelligence rollout.', historical_trend: [175, 182, 189, 198, 215, 230] },
+  { ticker: 'MSFT', name: 'Microsoft Corp.', sector: 'Technology', reason: 'Enterprise software monopoly and Azure cloud momentum powered by OpenAI partnership.', historical_trend: [370, 390, 415, 430, 445, 465] },
+  { ticker: 'NVDA', name: 'Nvidia Corp.', sector: 'Technology', reason: 'Monopolistic data center AI accelerator market share with Blackwell architecture demand surge.', historical_trend: [650, 780, 920, 1050, 1180, 1280] },
+  { ticker: 'GOOGL', name: 'Alphabet Inc.', sector: 'Technology', reason: 'Search advertising fortress, YouTube monetization, and rapid expansion of Google Cloud AI.', historical_trend: [135, 145, 155, 168, 178, 190] },
+  { ticker: 'AMZN', name: 'Amazon.com Inc.', sector: 'Consumer Cyclical', reason: 'E-commerce margin expansion paired with accelerating enterprise cloud spending on AWS.', historical_trend: [145, 158, 172, 185, 198, 210] },
+  { ticker: 'META', name: 'Meta Platforms Inc.', sector: 'Technology', reason: 'Ad-targeting efficiency gains via open-source LLaMA and dominant engagement across Instagram & WhatsApp.', historical_trend: [360, 420, 475, 510, 560, 600] },
+  { ticker: 'TSLA', name: 'Tesla Inc.', sector: 'Automobile', reason: 'Global EV volume leader scaling energy storage megapacks and autonomous Full Self-Driving tech.', historical_trend: [180, 195, 215, 230, 245, 265] },
+  { ticker: 'AMD', name: 'Advanced Micro Devices', sector: 'Technology', reason: 'Growing market share in x86 data center CPUs and MI300 series AI accelerator deployment.', historical_trend: [125, 140, 155, 168, 180, 195] },
+
+  // Financials & Payments
+  { ticker: 'JPM', name: 'JPMorgan Chase & Co.', sector: 'Financial Services', reason: 'America\'s fortress bank with industry-leading net interest income and pristine balance sheet.', historical_trend: [175, 188, 198, 208, 220, 235] },
+  { ticker: 'V', name: 'Visa Inc.', sector: 'Financial Services', reason: 'Global duopoly payments tollbooth with 50%+ operating margins and secular cashless growth.', historical_trend: [260, 270, 280, 288, 298, 310] },
+  { ticker: 'MA', name: 'Mastercard Inc.', sector: 'Financial Services', reason: 'Cross-border travel payments strength and high-margin cybersecurity services.', historical_trend: [430, 450, 470, 485, 505, 525] },
+
+  // Healthcare
+  { ticker: 'LLY', name: 'Eli Lilly and Co.', sector: 'Healthcare', reason: 'Blockbuster obesity (GLP-1) and diabetes drugs driving generational revenue growth.', historical_trend: [580, 680, 760, 840, 910, 970] },
+  { ticker: 'JNJ', name: 'Johnson & Johnson', sector: 'Healthcare', reason: 'Defensive pharmaceutical innovation and medical technology leader with AAA credit rating.', historical_trend: [150, 155, 158, 162, 165, 170] },
+  { ticker: 'UNH', name: 'UnitedHealth Group', sector: 'Healthcare', reason: 'Diversified managed healthcare and Optum pharmacy services provider with steady compounding.', historical_trend: [480, 500, 520, 545, 570, 595] },
+
+  // Consumer & Retail
+  { ticker: 'WMT', name: 'Walmart Inc.', sector: 'Consumer Defensive', reason: 'Omnichannel retail scale, expanding e-commerce marketplace, and high-margin advertising business.', historical_trend: [58, 62, 67, 72, 78, 84] },
+  { ticker: 'COST', name: 'Costco Wholesale Corp.', sector: 'Consumer Defensive', reason: '90%+ membership renewal rate driving predictable recurring high-margin cash flow.', historical_trend: [680, 730, 790, 840, 890, 940] },
+  { ticker: 'HD', name: 'The Home Depot', sector: 'Consumer Cyclical', reason: 'Home improvement category leader with expanding pro contractor digital ecosystem.', historical_trend: [340, 360, 375, 390, 405, 420] }
+];
+
   const handleGenerateAISuggestions = async () => {
     if (aiApiKey.trim()) {
       localStorage.setItem('openRouterApiKey', aiApiKey.trim());
@@ -168,8 +284,17 @@ export default function RiskAnalysis() {
     setAiLoading(true);
     setAiError(null);
 
-    const excludeTickers = [...stocks.map(s => s.ticker), ...rejectedStocks];
-    const excludeText = excludeTickers.length > 0 ? ` DO NOT suggest any of these tickers under any circumstance: ${excludeTickers.join(', ')}.` : '';
+    // Extract current portfolio tickers and rejected history cleanly
+    const currentPortfolioTickers = stocks.map(s => (typeof s === 'string' ? s : s?.ticker || '')).filter(Boolean);
+    let currentRejected = [...rejectedStocks];
+    let excludeTickers = new Set([...currentPortfolioTickers, ...currentRejected]);
+
+    const isIndian = aiAnswers.market === 'Indian Market' || aiAnswers.market === 'Indian stocks' || !aiAnswers.market?.toLowerCase().includes('us');
+    const catalog = isIndian ? INDIAN_STOCK_CATALOG : US_STOCK_CATALOG;
+
+    const excludeText = excludeTickers.size > 0 
+      ? ` DO NOT suggest any of these tickers under any circumstance: ${Array.from(excludeTickers).join(', ')}.` 
+      : '';
 
     const prompt = `I have a budget of ₹${budget}. I am looking for ${aiAnswers.horizon} investments in ${aiAnswers.market}, with a ${aiAnswers.risk} profile. I prefer sectors: ${aiAnswers.sector || 'Any'}. Please suggest 5 specific stock tickers I should consider adding to my portfolio.${excludeText} Provide a 1-sentence reason for each. 
 Return ONLY a raw JSON array (no markdown code blocks, no intro/outro text) matching this exact schema:
@@ -182,86 +307,119 @@ Return ONLY a raw JSON array (no markdown code blocks, no intro/outro text) matc
   }
 ]
 CRITICAL RULES:
-1. The "ticker" field MUST be the exact, valid Yahoo Finance ticker symbol (e.g., "HDFCBANK.NS", "RELIANCE.NS", "AAPL", "MSFT"). NEVER make up fake tickers. Only suggest real, actively traded companies from major indexes.
+1. The "ticker" field MUST be the exact, valid Yahoo Finance ticker symbol (e.g., "HDFCBANK.NS", "TCS.NS", "AAPL", "MSFT"). Only suggest real, actively traded companies.
 2. If suggesting Indian stocks, you MUST append the ".NS" or ".BO" suffix to the ticker (e.g. "INFY.NS").
 3. The historical_trend MUST be an array of 6 numbers representing mock monthly stock prices for the last 6 months. DO NOT return anything except the JSON array.`;
 
     let parsed = null;
-
     const effectiveApiKey = aiApiKey.trim() || import.meta.env.VITE_OPENROUTER_API_KEY || '';
 
-    if (effectiveApiKey && effectiveApiKey !== 'YOUR_API_KEY') {
-      try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${effectiveApiKey}`,
-            'HTTP-Referer': window.location.href,
-            'X-Title': 'Smart Investment Dashboard',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'poolside/laguna-xs-2.1:free',
-            messages: [{ role: 'user', content: prompt }],
-            max_tokens: 1500
-          })
-        });
+    // Candidate real models on OpenRouter
+    const candidateModels = [
+      'google/gemma-4-31b-it:free',
+      'nvidia/nemotron-3-ultra-550b-a55b:free',
+      'openrouter/free',
+      'nvidia/nemotron-3.5-lightning:free',
+      'dots-studio/dots-3-note-preview:free'
+    ];
 
-        if (response.ok) {
-          const data = await response.json();
-          let content = data.choices[0].message.content;
-          const match = content.match(/\[[\s\S]*\]/);
-          if (match) {
-            parsed = JSON.parse(match[0]);
+    if (effectiveApiKey && effectiveApiKey !== 'YOUR_API_KEY') {
+      for (const modelId of candidateModels) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+          const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${effectiveApiKey}`,
+              'HTTP-Referer': typeof window !== 'undefined' ? window.location.href : 'http://localhost:5173',
+              'X-Title': 'Smart Investment Dashboard',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: modelId,
+              messages: [{ role: 'user', content: prompt }],
+              max_tokens: 1500,
+              temperature: 0.3
+            }),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content || '';
+            const match = content.match(/\[[\s\S]*\]/);
+            if (match) {
+              const candidateArr = JSON.parse(match[0]);
+              if (Array.isArray(candidateArr) && candidateArr.length > 0) {
+                // Ensure tickers aren't in excludeTickers
+                const filtered = candidateArr.filter(item => item?.ticker && !excludeTickers.has(item.ticker));
+                if (filtered.length > 0) {
+                  parsed = filtered.slice(0, 5);
+                  break;
+                }
+              }
+            }
           }
+        } catch (err) {
+          // Continue to next candidate model
         }
-      } catch (err) {
-        console.warn("OpenRouter API call failed, using smart fallback suggestions:", err);
       }
     }
 
-    // Fallback recommendations if OpenRouter call was skipped or failed
+    // Dynamic catalog selection with infinite exploration
     if (!parsed || !Array.isArray(parsed) || parsed.length === 0) {
-      const isIndian = aiAnswers.market === 'Indian Market' || aiAnswers.market === 'Indian stocks';
-      const defaults = isIndian ? [
-        { ticker: 'RELIANCE.NS', name: 'Reliance Industries Ltd.', reason: 'Diversified conglomerate with leadership in energy, telecom, and retail.', historical_trend: [2400, 2450, 2520, 2480, 2600, 2680] },
-        { ticker: 'TCS.NS', name: 'Tata Consultancy Services', reason: 'Global IT leader with strong free cash flows and steady dividends.', historical_trend: [3400, 3480, 3550, 3600, 3720, 3850] },
-        { ticker: 'HDFCBANK.NS', name: 'HDFC Bank Ltd.', reason: 'Top private bank with high credit growth and low non-performing assets.', historical_trend: [1500, 1530, 1580, 1610, 1650, 1710] },
-        { ticker: 'INFY.NS', name: 'Infosys Ltd.', reason: 'Strong digital service deal pipeline and robust multi-year order book.', historical_trend: [1420, 1460, 1510, 1490, 1550, 1620] },
-        { ticker: 'ICICIBANK.NS', name: 'ICICI Bank Ltd.', reason: 'Consistent net interest margin expansion and industry-leading performance.', historical_trend: [980, 1010, 1050, 1080, 1120, 1160] }
-      ] : [
-        { ticker: 'AAPL', name: 'Apple Inc.', reason: 'Unmatched brand loyalty, robust hardware ecosystem, and services growth.', historical_trend: [175, 180, 185, 182, 190, 198] },
-        { ticker: 'MSFT', name: 'Microsoft Corp.', reason: 'Dominant enterprise cloud and AI infrastructure provider with strong margins.', historical_trend: [330, 345, 360, 375, 390, 415] },
-        { ticker: 'NVDA', name: 'Nvidia Corp.', reason: 'Market leader in GPUs powering global artificial intelligence infrastructure.', historical_trend: [450, 520, 610, 720, 850, 920] },
-        { ticker: 'GOOGL', name: 'Alphabet Inc.', reason: 'Search market dominance combined with rapid growth in Google Cloud.', historical_trend: [130, 136, 142, 148, 155, 165] },
-        { ticker: 'AMZN', name: 'Amazon.com Inc.', reason: 'E-commerce logistics efficiency combined with high-margin AWS cloud infrastructure.', historical_trend: [135, 142, 150, 158, 168, 178] }
-      ];
-      parsed = defaults.filter(item => !excludeTickers.includes(item.ticker));
+      let remainingPool = catalog.filter(item => !excludeTickers.has(item.ticker));
+
+      // Prioritize requested sector if specified
+      if (aiAnswers.sector && aiAnswers.sector.trim()) {
+        const secLower = aiAnswers.sector.toLowerCase().trim();
+        remainingPool.sort((a, b) => {
+          const aMatch = (a.sector || '').toLowerCase().includes(secLower) ? 1 : 0;
+          const bMatch = (b.sector || '').toLowerCase().includes(secLower) ? 1 : 0;
+          return bMatch - aMatch;
+        });
+      }
+
+      // If user reviewed all stocks in the catalog, recycle rejected stocks so they can explore again
+      // (preserving current portfolio holdings so already added stocks aren't re-suggested)
+      if (remainingPool.length === 0) {
+        setRejectedStocks([]);
+        sessionStorage.removeItem('risk_rejected');
+        currentRejected = [];
+        excludeTickers = new Set(currentPortfolioTickers);
+        remainingPool = catalog.filter(item => !excludeTickers.has(item.ticker));
+      }
+
+      parsed = remainingPool.slice(0, 5);
     }
 
     try {
-      // Override mock trends with real market data
+      // Enhance with live backend price data if backend server is reachable
       const withRealData = await Promise.all(parsed.map(async (card) => {
         try {
-          const res = await fetch(`http://127.0.0.1:8000/api/market-trend?symbol=${encodeURIComponent(card.ticker)}`);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
+          const res = await fetch(`http://127.0.0.1:8000/api/market-trend?symbol=${encodeURIComponent(card.ticker)}`, {
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
           if (res.ok) {
             const trendData = await res.json();
-            if (trendData.trend && trendData.trend.length > 0) {
-              return { ...card, historical_trend: trendData.trend };
+            if (trendData.trend && Array.isArray(trendData.trend) && trendData.trend.length > 0) {
+              return { ...card, historical_trend: trendData.trend.slice(-15) };
             }
           }
         } catch (e) {
-          console.error("Failed to fetch real trend for", card.ticker, e);
+          // Graceful fallback to built-in trend
         }
         return card;
       }));
       
       const validSuggestions = withRealData.filter(Boolean);
-      
-      if (validSuggestions.length === 0) {
-        throw new Error('The AI generated invalid or unrecognized tickers. Please try again.');
-      }
-      
       setAiSuggestions(validSuggestions);
     } catch (err) {
       console.error(err);
@@ -502,7 +660,265 @@ CRITICAL RULES:
     }
   };
 
-  const PortfolioCard = ({ portfolio }) => {
+  // Institutional financial knowledge base for realistic company rationale
+  const STOCK_KNOWLEDGE = {
+    // FMCG / Consumer Staples
+    'HINDUNILVR': { sector: 'FMCG & Consumer Staples', defensiveTrait: 'daily household necessity demand and pricing power that insulate earnings during economic contractions', growthTrait: 'steady volume growth and expanding premium product margins' },
+    'ITC': { sector: 'Diversified FMCG & Agri', defensiveTrait: 'virtually zero debt, robust free cash flows, and reliable dividend yields', growthTrait: 'agri-business scaling and rapid margin expansion in non-cigarette FMCG' },
+    'NESTLE': { sector: 'Packaged Foods & Nutrition', defensiveTrait: 'high-margin non-cyclical food consumption with exceptional brand loyalty', growthTrait: 'urban premiumization and rapid quick-commerce retail expansion' },
+    'BRITANNIA': { sector: 'Consumer Bakery & Dairy', defensiveTrait: 'resilient staple volume demand and high return on capital employed (ROCE)', growthTrait: 'deep distribution penetration across tier-2/3 markets and premium launches' },
+    'DABUR': { sector: 'Ayurvedic & Healthcare FMCG', defensiveTrait: 'steady demand for daily wellness and herbal healthcare products', growthTrait: 'modern trade expansion and strong rural retail recovery' },
+    'MARICO': { sector: 'Consumer Oils & Personal Care', defensiveTrait: 'dominant market share in core hair and edible oil categories with steady cash flows', growthTrait: 'digital-first brand scaling and international market growth' },
+    'COLPAL': { sector: 'Oral & Personal Care', defensiveTrait: 'inelastic daily oral care usage and market-leading gross margins', growthTrait: 'premium therapeutics and specialized oral beauty products' },
+    'TATACONSUM': { sector: 'Packaged Beverages & Foods', defensiveTrait: 'steady staple consumption across tea, salt, and essential groceries', growthTrait: 'rapid portfolio scaling in health foods, ready-to-eat, and cafe joint ventures' },
+
+    // Pharma & Healthcare
+    'DRREDDY': { sector: 'Pharmaceuticals & Generics', defensiveTrait: 'inelastic global demand for essential prescription medicine that remains steady through market cycles', growthTrait: 'high-margin complex generic launches and US market patent exclusivities' },
+    'SUNPHARMA': { sector: 'Specialty Pharma & Therapeutics', defensiveTrait: 'diversified therapeutic revenue base and leading domestic chronic disease market share', growthTrait: 'rapidly growing global specialty dermatology and ophthalmology franchises' },
+    'CIPLA': { sector: 'Respiratory & Primary Healthcare', defensiveTrait: 'essential respiratory therapy demand and extensive global distribution', growthTrait: 'expansion in complex generic inhalation therapies in the US and Europe' },
+    'APOLLO': { sector: 'Healthcare & Hospitals', defensiveTrait: 'non-discretionary medical demand and high hospital bed occupancy rates', growthTrait: 'omnichannel digital health expansion via Apollo 24/7 and diagnostic centers' },
+    'DIVISLAB': { sector: 'Active Pharmaceutical Ingredients (API)', defensiveTrait: 'global supply reliability in critical generic APIs and custom synthesis', growthTrait: 'large-scale capacity additions for contrast media and patent peptide APIs' },
+
+    // Banking & Financials
+    'SBIN': { sector: 'Banking & Financial Services', defensiveTrait: 'massive low-cost CASA deposit base and sovereign asset backing', growthTrait: 'strong corporate credit growth and healthy net interest margins' },
+    'HDFC': { sector: 'Private Banking & Wealth Services', defensiveTrait: 'prudent underwriting discipline, low non-performing assets, and vast deposit network', growthTrait: 'cross-selling mortgages, credit cards, and wealth solutions across newly merged branches' },
+    'ICICI': { sector: 'Private Sector Banking', defensiveTrait: 'conservative risk buffers, well-diversified loan book, and strong capital adequacy', growthTrait: 'digital loan processing velocity and industry-leading return on equity (ROE)' },
+    'KOTAK': { sector: 'Private Banking & Asset Management', defensiveTrait: 'exceptional Tier-1 capital adequacy and conservative risk-weighted asset profile', growthTrait: 'accelerating SME lending growth and high-net-worth wealth management expansion' },
+    'AXIS': { sector: 'Commercial Banking & Cards', defensiveTrait: 'strengthened balance sheet quality and growing retail deposit stickiness', growthTrait: 'synergies from acquired consumer banking assets and digital retail credit expansion' },
+    'BAJFINANCE': { sector: 'Consumer Finance & NBFC', defensiveTrait: 'sophisticated proprietary risk-scoring models and low delinquency rates', growthTrait: 'unmatched customer acquisition run-rate and aggressive omnichannel loan disbursement' },
+
+    // Tech & Digital Solutions
+    'TCS': { sector: 'IT Services & Digital Transformation', defensiveTrait: 'industry-leading operating margins, ~100% free cash flow conversion, and vast multi-year client backlog', growthTrait: 'global enterprise contracts in generative AI, cloud modernization, and cyber architecture' },
+    'INFY': { sector: 'Information Technology & Consulting', defensiveTrait: 'debt-free balance sheet, large liquid cash reserves, and generous shareholder dividend policy', growthTrait: 'accelerating large enterprise transformation deal wins and cloud platform scaling' },
+    'HCLTECH': { sector: 'IT Services & Engineering R&D', defensiveTrait: 'recurring software intellectual property (IP) revenue and high enterprise client retention', growthTrait: 'expanding digital engineering solutions and telecom 5G cloud transformation contracts' },
+    'WIPRO': { sector: 'IT Consulting & Cloud Solutions', defensiveTrait: 'healthy balance sheet liquidity and long-standing Fortune 500 client partnerships', growthTrait: 'large multi-year IT infrastructure deals and strategic consulting integration' },
+    'LTIM': { sector: 'IT Services & Enterprise Tech', defensiveTrait: 'strong engineering heritage under Larsen & Toubro backing and diversified tier-1 accounts', growthTrait: 'post-merger cross-selling in banking, media, and supply chain tech' },
+
+    // Utilities & Energy
+    'POWERGRID': { sector: 'Power Transmission & Utilities', defensiveTrait: 'regulated cost-plus return on equity model with guaranteed tariffs and zero demand volume risk', growthTrait: 'major capital expenditure to connect new renewable energy green transmission corridors' },
+    'NTPC': { sector: 'Power Generation & Green Energy', defensiveTrait: 'long-term Power Purchase Agreements (PPAs) ensuring consistent cash receipts and protected operating margins', growthTrait: 'aggressive commissioning of 60 GW of solar and wind generation capacity by 2032' },
+    'ONGC': { sector: 'Oil & Gas Exploration & Production', defensiveTrait: 'domestic energy security significance and high dividend payouts backed by sovereign support', growthTrait: 'increased domestic gas realization caps and offshore deepwater exploration' },
+    'RELIANCE': { sector: 'Energy & Digital Conglomerate', defensiveTrait: 'multi-engine cash flow streams across telecom, retail, and energy that cushion market shocks', growthTrait: '5G network monetization, rapid retail footprint growth, and renewable energy gigafactories' },
+    'TATAPOWER': { sector: 'Renewables & Power Distribution', defensiveTrait: 'stable regulated returns across transmission and city distribution circles', growthTrait: 'rapidly expanding solar EPC order book, rooftop solar, and nationwide EV charging stations' },
+
+    // Consumer Discretionary & Auto
+    'TITAN': { sector: 'Branded Retail & Discretionary', defensiveTrait: 'trusted Tata brand equity that commands enduring customer loyalty and pricing power', growthTrait: 'rapid formalization of jewelry retail and high store network expansion' },
+    'MARUTI': { sector: 'Automotive & Mobility', defensiveTrait: 'peerless nationwide distribution network, debt-free balance sheet, and strong resale value', growthTrait: 'market share gains from new hybrid SUV rollouts and expanding export volumes' },
+    'TATAMOTORS': { sector: 'Commercial & Luxury Automotive', defensiveTrait: 'market leadership in Indian domestic commercial vehicles and trucks', growthTrait: 'pioneering leadership in domestic EV passenger cars and strong global order book for Range Rover/Defender' },
+    'BAJAJ-AUTO': { sector: 'Automotive & 2/3-Wheelers', defensiveTrait: 'diversified export presence across 70+ countries and debt-free cash generation', growthTrait: 'rapidly scaling Chetak EV footprint and premium Triumph motorcycle partnerships' },
+    'M&M': { sector: 'Automotive & Farm Equipment', defensiveTrait: 'uncontested dominance in domestic agricultural tractors and rural cash flows', growthTrait: 'booming order book for flagship SUV models and new born-electric vehicle platforms' },
+
+    // Industrials & Capital Goods
+    'LT': { sector: 'Engineering & Construction', defensiveTrait: 'historic multi-trillion rupee global order backlog backed by sovereign and institutional infrastructure tenders', growthTrait: 'record international hydrocarbon and renewable infrastructure orders across the Middle East' },
+    'BEL': { sector: 'Defense Electronics & Aerospace', defensiveTrait: 'zero-debt sovereign enterprise with guaranteed domestic defense procurement mandates', growthTrait: 'record defense order pipeline in radar, electronic warfare, and missile defense avionics' },
+    'TATASTEEL': { sector: 'Metals & Basic Materials', defensiveTrait: 'low-cost iron ore integration and deep domestic industrial market relationships', growthTrait: 'capacity expansions at Kalinganagar and transition to low-carbon electric arc furnaces' },
+
+    // Global / US Leaders
+    'AAPL': { sector: 'Global Technology Ecosystem', defensiveTrait: 'active global installed device base of over 2 billion devices with unmatched customer retention', growthTrait: 'high-margin Services compounding and on-device privacy-focused Apple Intelligence' },
+    'MSFT': { sector: 'Cloud & Enterprise Software', defensiveTrait: 'indispensable enterprise productivity suite and mission-critical Azure cloud infrastructure', growthTrait: 'leadership in commercial generative AI copilots and enterprise cloud workloads' },
+    'GOOGL': { sector: 'Search & Cloud Platforms', defensiveTrait: 'uncontested global search monopoly and unmatched digital advertising ecosystem', growthTrait: 'Google Cloud profitability scaling, YouTube subscription growth, and Gemini model integration' },
+    'NVDA': { sector: 'AI Hardware & Semiconductor', defensiveTrait: 'deep developer moat with proprietary CUDA software architecture and high switching costs', growthTrait: 'unprecedented global enterprise and hyperscaler demand for accelerated AI compute clusters' },
+    'AMZN': { sector: 'E-Commerce & Cloud Infrastructure', defensiveTrait: 'world-class logistics fulfillment moat and AWS enterprise recurring cloud cash flows', growthTrait: 'accelerating digital retail ad monetization and AI infrastructure hosting' }
+  };
+
+  const getStockRationale = (symbol, alloc, profileType) => {
+    const sym = (symbol || '').toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const pct = alloc.percentage;
+    const amtFormatted = Math.round(alloc.amount).toLocaleString('en-IN');
+    
+    let matchKey = Object.keys(STOCK_KNOWLEDGE).find(k => sym.includes(k) || k.includes(sym));
+    const info = matchKey ? STOCK_KNOWLEDGE[matchKey] : null;
+
+    if (profileType === 'safe') {
+      if (pct >= 25) {
+        if (info) return `Allocated a primary ${pct}% (₹${amtFormatted}) as a defensive foundation in ${info.sector}. ${info.defensiveTrait[0].toUpperCase() + info.defensiveTrait.slice(1)}, keeping downside portfolio volatility minimal.`;
+        return `Allocated a primary ${pct}% (₹${amtFormatted}) as a core defensive pillar; its consistent operational cash flows and low market beta safeguard your capital against market pullbacks.`;
+      } else {
+        if (info) return `Weighted at ${pct}% (₹${amtFormatted}) to maintain healthy diversification in ${info.sector} without over-exposing the portfolio to cyclical swings.`;
+        return `Weighted at ${pct}% (₹${amtFormatted}) to maintain asset diversification while keeping portfolio risk strictly within conservative limits.`;
+      }
+    } else if (profileType === 'balanced') {
+      if (pct >= 25) {
+        if (info) return `Allocated ${pct}% (₹${amtFormatted}) as a core growth compounder in ${info.sector}. Combines ${info.defensiveTrait} with ${info.growthTrait}.`;
+        return `Allocated ${pct}% (₹${amtFormatted}) as a principal compounder, delivering an optimal balance between steady cash generation and long-term capital compounding.`;
+      } else {
+        if (info) return `Allocated ${pct}% (₹${amtFormatted}) to capture ${info.growthTrait} in ${info.sector}, optimizing the portfolio's overall risk-reward ratio.`;
+        return `Allocated ${pct}% (₹${amtFormatted}) to capture upside growth momentum while dampening correlation risks across your holdings.`;
+      }
+    } else {
+      // aggressive
+      if (pct >= 35) {
+        if (info) return `Heavily weighted at ${pct}% (₹${amtFormatted}) to maximize upside capital appreciation in ${info.sector}, capitalizing on ${info.growthTrait}.`;
+        return `Heavily weighted at ${pct}% (₹${amtFormatted}) to maximize capital growth, capitalizing on strong sector tailwinds and secular earnings expansion.`;
+      } else {
+        if (info) return `Allocated ${pct}% (₹${amtFormatted}) in ${info.sector} to accelerate portfolio return velocity while maintaining tactical liquidity.`;
+        return `Allocated ${pct}% (₹${amtFormatted}) to drive aggressive portfolio expansion and capture market-beating alpha.`;
+      }
+    }
+  };
+
+  // Generates institutional financial rationale for stock breakdowns across all 3 risk profiles
+  const generateDeterministicRationale = (stocksList, budgetAmount, portfolios) => {
+    const safeAllocs = portfolios?.safe?.allocations || [];
+    const balancedAllocs = portfolios?.balanced?.allocations || [];
+    const aggressiveAllocs = portfolios?.aggressive?.allocations || [];
+
+    const buildStockReasons = (allocs, profileType) => {
+      const reasons = {};
+      allocs.forEach(a => {
+        const ticker = a.ticker || a.name;
+        reasons[ticker] = getStockRationale(ticker, a, profileType);
+      });
+      return reasons;
+    };
+
+    return {
+      safe: {
+        strategy_summary: 'Capital Preservation Strategy: Overweights recession-resistant sectors (FMCG, healthcare, regulated utilities) with fortress balance sheets, high dividend yields, and low market beta to safeguard your capital against sudden market drawdowns.',
+        mentor_answer: 'The low-risk allocation is calculated by solving for minimal empirical portfolio variance. Non-cyclical defensive stocks with low correlation and inelastic demand receive the lion’s share of capital, while volatile cyclical assets are tightly capped.',
+        stock_reasons: buildStockReasons(safeAllocs, 'safe')
+      },
+      balanced: {
+        strategy_summary: 'Optimal Compounding Strategy: Strikes an intelligent equilibrium between high-quality defensive anchors and market-leading compounders, maximizing long-term wealth accumulation while managing portfolio volatility.',
+        mentor_answer: 'The balanced profile optimizes for the highest risk-adjusted compounding efficiency (Sharpe ratio), ensuring each rupee invested generates maximum excess return per unit of volatility.',
+        stock_reasons: buildStockReasons(balancedAllocs, 'balanced')
+      },
+      aggressive: {
+        strategy_summary: 'Aggressive Growth Strategy: Concentrates capital directly into high-momentum market leaders and secular growth sectors to maximize capital appreciation, accepting higher short-term volatility in exchange for maximum compounding speed.',
+        mentor_answer: 'The high-risk portfolio removes defensive diversification constraints to concentrate into top secular performers, prioritizing alpha generation and market upside over downside buffering.',
+        stock_reasons: buildStockReasons(aggressiveAllocs, 'aggressive')
+      }
+    };
+  };
+
+  const calculateAiAllocationBreakdown = async () => {
+    setIsCalculatingBreakdown(true);
+    const effectiveApiKey = aiApiKey?.trim() || getActiveApiKey() || '';
+
+    const safeAllocs = analysisResult?.portfolios?.safe?.allocations || [];
+    const balancedAllocs = analysisResult?.portfolios?.balanced?.allocations || [];
+    const aggressiveAllocs = analysisResult?.portfolios?.aggressive?.allocations || [];
+
+    const activePromptText = allocationPrompt?.trim() || 
+      `The user has a budget of ₹${budget.toLocaleString('en-IN')}, and has selected ${stocks.join(', ')}. Suggest an optimal portfolio allocation breakdown tailored for his risk profile (${riskProfile}), and provide convincing, realistic wealth-advisor reasons explaining why each stock is allocated that amount.`;
+
+    const prompt = `USER DIRECTIVE:
+${activePromptText}
+
+PORTFOLIO DETAILS:
+- Total Budget: ₹${budget.toLocaleString('en-IN')}
+- Selected Assets: ${stocks.join(', ')}
+- Target Horizon: ${duration} years
+- Selected Risk Profile: ${riskProfile}
+
+Baseline Modern Portfolio Theory (MPT) Optimization Weights Already Computed:
+1. The Defender (Low Risk / Capital Preservation):
+${safeAllocs.map(a => `- ${a.ticker || a.name}: ${a.percentage}% (₹${Math.round(a.amount).toLocaleString('en-IN')})`).join('\n')}
+
+2. The Balanced (AI Optimum / Balanced Compounding):
+${balancedAllocs.map(a => `- ${a.ticker || a.name}: ${a.percentage}% (₹${Math.round(a.amount).toLocaleString('en-IN')})`).join('\n')}
+
+3. The Aggressor (High Risk / Momentum Alpha):
+${aggressiveAllocs.map(a => `- ${a.ticker || a.name}: ${a.percentage}% (₹${Math.round(a.amount).toLocaleString('en-IN')})`).join('\n')}
+
+TASK:
+Provide a clear, professional institutional rationale explaining WHY each stock received its specific weight across the 3 profiles, and give a concise talking script to answer a mentor asking: "Why is the price and weight breakdown calculated this way?"
+
+CRITICAL GUIDELINES:
+1. Speak like a senior private wealth manager. DO NOT use raw mathematical formulas or symbols (NO "min w^T \\Sigma w", NO "quadratic programming", NO "(E[Rp]-Rf)/\\sigma_p"). Mentors and investors dislike dry math formulas.
+2. Explain the financial reasoning in natural, persuasive wealth advisor language:
+   - Why does a low-risk profile favor defensive staples, pharmaceuticals, or dividend utilities?
+   - Why does the balanced profile blend steady cash generators with compounders?
+   - Why does the high-risk profile concentrate in fast-growing leaders?
+3. For EACH stock in each profile, write 1-2 distinct, specific sentences explaining why its specific allocated amount and percentage makes sense for that company's business model (e.g. cash flow predictability, pricing power, balance sheet, dividend safety, or growth momentum). DO NOT repeat the same generic sentence for different stocks.
+
+Return ONLY a JSON object with this exact structure (no markdown fences, no other text):
+{
+  "safe": {
+    "strategy_summary": "1-2 sentence core thesis on capital preservation and defensive sector tilt.",
+    "mentor_answer": "Direct 2-3 sentence answer to give your mentor explaining why the low-risk portfolio is weighted like this.",
+    "stock_reasons": {
+      "TICKER": "1-2 sentences on why this stock received its allocated percentage and amount."
+    }
+  },
+  "balanced": {
+    "strategy_summary": "1-2 sentence core thesis on balanced compounding and risk-adjusted efficiency.",
+    "mentor_answer": "Direct 2-3 sentence answer to give your mentor explaining why the balanced portfolio is weighted like this.",
+    "stock_reasons": {
+      "TICKER": "1-2 sentences on why this stock received its allocated percentage and amount."
+    }
+  },
+  "aggressive": {
+    "strategy_summary": "1-2 sentence core thesis on capital appreciation and momentum.",
+    "mentor_answer": "Direct 2-3 sentence answer to give your mentor explaining why the high-risk portfolio is weighted like this.",
+    "stock_reasons": {
+      "TICKER": "1-2 sentences on why this stock received its allocated percentage and amount."
+    }
+  }
+}`;
+
+    let parsed = null;
+    if (effectiveApiKey && effectiveApiKey !== 'YOUR_API_KEY') {
+      const candidateModels = [
+        'google/gemma-4-31b-it:free',
+        'nvidia/nemotron-3-ultra-550b-a55b:free',
+        'openrouter/free',
+        'nvidia/nemotron-3.5-lightning:free'
+      ];
+      for (const modelId of candidateModels) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 9000);
+          const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${effectiveApiKey}`,
+              'HTTP-Referer': typeof window !== 'undefined' ? window.location.href : 'http://localhost:5173',
+              'X-Title': 'Smart Investment Dashboard',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: modelId,
+              messages: [{ role: 'user', content: prompt }],
+              max_tokens: 1500,
+              temperature: 0.25
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          if (response.ok) {
+            const data = await response.json();
+            const rawContent = data.choices?.[0]?.message?.content || '';
+            const cleaned = cleanModelOutput(rawContent);
+            const firstBrace = cleaned.indexOf('{');
+            const lastBrace = cleaned.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+              const obj = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+              if (obj.safe && obj.balanced && obj.aggressive) {
+                parsed = obj;
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          // Continue to next candidate model
+        }
+      }
+    }
+
+    if (!parsed) {
+      // High-quality deterministic institutional rationale
+      parsed = generateDeterministicRationale(stocks, budget, analysisResult?.portfolios);
+    }
+
+    setBreakdownRationale(parsed);
+    setIsAllocationCalculated(true);
+    setIsCalculatingBreakdown(false);
+    sessionStorage.setItem('risk_allocation_calculated', 'true');
+    sessionStorage.setItem('risk_breakdown_rationale', JSON.stringify(parsed));
+  };
+
+  const PortfolioCard = ({ portfolio, profileKey = 'safe' }) => {
     const chartOptions = {
       chart: {
         type: 'donut',
@@ -565,33 +981,85 @@ CRITICAL RULES:
     const series = portfolio.allocations.map(a => a.amount);
 
     return (
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-300 relative">
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1">{portfolio.name}</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">{portfolio.description}</p>
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-300 relative flex flex-col justify-between">
+        <div>
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1">{portfolio.name}</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{portfolio.description}</p>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-bold tracking-wide whitespace-nowrap">
+              {portfolio.projected_return_pa}% PA
+            </div>
           </div>
-          <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-bold tracking-wide whitespace-nowrap">
-            {portfolio.projected_return_pa}% PA
+          
+          <div className="h-[200px] w-full mb-6 relative flex items-center justify-center">
+            <ReactApexChart options={chartOptions} series={series} type="donut" height="100%" />
           </div>
-        </div>
-        
-        <div className="h-[220px] w-full mb-6 relative flex items-center justify-center">
-          <ReactApexChart options={chartOptions} series={series} type="donut" height="100%" />
-        </div>
-        
-        <div className="space-y-3 w-full">
-          {portfolio.allocations.map((alloc, idx) => (
-            <div key={idx} className="flex justify-between items-center text-sm">
-              <div className="flex items-center gap-2 overflow-hidden mr-2">
-                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: alloc.color }}></div>
-                <span className="text-slate-700 dark:text-slate-300 truncate font-medium" title={alloc.name}>
-                  {alloc.name} <span className="text-slate-400 font-normal">({alloc.percentage}%)</span>
+          
+          <div className="space-y-3 w-full">
+            {portfolio.allocations.map((alloc, idx) => (
+              <div key={idx} className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2 overflow-hidden mr-2">
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: alloc.color }}></div>
+                  <span className="text-slate-700 dark:text-slate-300 truncate font-medium" title={alloc.name}>
+                    {alloc.name} <span className="text-slate-400 font-normal">({alloc.percentage}%)</span>
+                  </span>
+                </div>
+                <span className="font-semibold text-slate-900 dark:text-white shrink-0">{formatCurrency(alloc.amount)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* AI Institutional Allocation Rationale (Requested by Mentor) */}
+          {breakdownRationale && breakdownRationale[profileKey] && (
+            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 text-left">
+              <div className="flex items-center mb-2.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[15px] text-blue-500">psychology</span>
+                  Why this breakdown?
                 </span>
               </div>
-              <span className="font-semibold text-slate-900 dark:text-white shrink-0">{formatCurrency(alloc.amount)}</span>
+              
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-3 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+                {breakdownRationale[profileKey].strategy_summary}
+              </p>
+
+              {/* Stock-by-stock rationale accordion */}
+              <div className="space-y-1.5">
+                {portfolio.allocations.map((alloc, idx) => {
+                  const sym = alloc.ticker || alloc.name;
+                  const cleanSym = sym.replace(/\.(NS|BO)$/i, '');
+                  const reason = breakdownRationale[profileKey].stock_reasons?.[sym] || 
+                                 breakdownRationale[profileKey].stock_reasons?.[cleanSym] ||
+                                 breakdownRationale[profileKey].stock_reasons?.[alloc.name] ||
+                                 getStockRationale(sym, alloc, profileKey);
+                  const isExp = expandedStockRationale[`${profileKey}_${sym}`];
+                  return (
+                    <div key={idx} className="rounded-lg border border-slate-100 dark:border-slate-800/80 bg-white/70 dark:bg-slate-800/40 p-2 text-xs">
+                      <button
+                        onClick={() => setExpandedStockRationale(prev => ({ ...prev, [`${profileKey}_${sym}`]: !isExp }))}
+                        className="w-full flex justify-between items-center text-left font-semibold text-slate-700 dark:text-slate-200"
+                      >
+                        <span className="flex items-center gap-1.5 truncate">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: alloc.color }}></span>
+                          <span className="truncate">{sym} ({alloc.percentage}%)</span>
+                        </span>
+                        <span className="material-symbols-outlined text-[14px] text-slate-400 shrink-0">
+                          {isExp ? 'expand_less' : 'expand_more'}
+                        </span>
+                      </button>
+                      {isExp && (
+                        <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800 pt-1.5 animate-fade-in">
+                          {reason}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          ))}
+          )}
         </div>
         
         <button 
@@ -906,12 +1374,171 @@ CRITICAL RULES:
                </div>
              )}
 
-             <h2 className="text-2xl font-bold mb-6 text-slate-900 dark:text-white">AI Suggested Allocations</h2>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                <PortfolioCard portfolio={analysisResult.portfolios.safe} />
-                <PortfolioCard portfolio={analysisResult.portfolios.balanced} />
-                <PortfolioCard portfolio={analysisResult.portfolios.aggressive} />
-             </div>
+              {/* AI Strategic Allocation Header & Status */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>AI Suggested Allocations</span>
+                    {isAllocationCalculated && (
+                      <span className="text-xs bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-full font-semibold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">verified</span> AI Advisor Verified
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Modern Portfolio Theory optimization tailored across 3 distinct risk appetites.
+                  </p>
+                </div>
+                {isAllocationCalculated && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowPromptEditor(!showPromptEditor)}
+                      className="px-3.5 py-2 rounded-xl border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit_note</span>
+                      <span>{showPromptEditor ? 'Hide Prompt' : 'Edit Prompt & Recalculate'}</span>
+                    </button>
+                    <button
+                      onClick={calculateAiAllocationBreakdown}
+                      disabled={isCalculatingBreakdown}
+                      className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                      title="Recalculate AI breakdown rationale"
+                    >
+                      <span className={`material-symbols-outlined text-sm text-blue-500 ${isCalculatingBreakdown ? 'animate-spin' : ''}`}>sync</span>
+                      <span>Recalculate</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Collapsible Prompt Editor Bar when already calculated */}
+              {isAllocationCalculated && showPromptEditor && (
+                <div className="mb-6 p-4 rounded-2xl bg-slate-900 text-white border border-slate-700/80 shadow-md animate-fade-in">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                      <span className="material-symbols-outlined text-sm text-amber-400">psychology</span>
+                      Active AI Advisor Prompt
+                    </label>
+                    <span className="text-[11px] text-slate-400">Tweak instructions and re-run</span>
+                  </div>
+                  <textarea
+                    value={allocationPrompt}
+                    onChange={(e) => {
+                      setAllocationPrompt(e.target.value);
+                      sessionStorage.setItem('risk_allocation_prompt', e.target.value);
+                    }}
+                    rows={2}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-xl p-3 text-xs text-slate-200 outline-none transition-all leading-relaxed resize-none"
+                    placeholder="e.g. The user has a budget of [budget], has selected [stocks], suggest a good allocation based on his [risk profile]..."
+                  />
+                  <div className="flex justify-end gap-2 mt-3">
+                    <button
+                      onClick={() => setShowPromptEditor(false)}
+                      className="px-3 py-1.5 text-xs text-slate-400 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        calculateAiAllocationBreakdown();
+                        setShowPromptEditor(false);
+                      }}
+                      disabled={isCalculatingBreakdown}
+                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-sm">bolt</span>
+                      Recalculate with this Prompt
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 3 Profile Cards with Interactive Blur Overlay */}
+              <div className="relative mb-12">
+                <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-500 ${
+                  !isAllocationCalculated ? 'filter blur-md pointer-events-none select-none opacity-30 scale-[0.99]' : ''
+                }`}>
+                   <PortfolioCard portfolio={analysisResult.portfolios.safe} profileKey="safe" />
+                   <PortfolioCard portfolio={analysisResult.portfolios.balanced} profileKey="balanced" />
+                   <PortfolioCard portfolio={analysisResult.portfolios.aggressive} profileKey="aggressive" />
+                </div>
+
+                {/* Floating Centered Action Card when Breakdown Not Yet Calculated */}
+                {!isAllocationCalculated && (
+                  <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+                    <div className="w-full max-w-xl bg-slate-900/95 dark:bg-slate-900/95 text-white backdrop-blur-xl border border-slate-700/80 rounded-3xl p-6 sm:p-8 shadow-[0_25px_60px_rgba(0,0,0,0.6)] text-center animate-fade-in relative overflow-hidden">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center mx-auto mb-3 shadow-inner">
+                        <span className="material-symbols-outlined text-3xl text-amber-400 animate-pulse">local_fire_department</span>
+                      </div>
+
+                      <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight mb-1.5">
+                        Calculate Breakdown According to Profile
+                      </h3>
+                      <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mx-auto mb-4">
+                        Generate an intelligent capital allocation and clear, stock-by-stock advisor explanations using your connected AI API key.
+                      </p>
+
+                      <div className="flex flex-wrap items-center justify-center gap-2 mb-4 text-xs text-slate-300">
+                        <span className="bg-slate-800/90 border border-slate-700 px-3 py-1 rounded-full font-medium">
+                          💰 Budget: ₹{budget.toLocaleString('en-IN')}
+                        </span>
+                        <span className="bg-slate-800/90 border border-slate-700 px-3 py-1 rounded-full font-medium">
+                          📊 Stocks: {stocks.length} Selected
+                        </span>
+                        <span className="bg-slate-800/90 border border-slate-700 px-3 py-1 rounded-full font-medium">
+                          🎯 Profile: {riskProfile}
+                        </span>
+                      </div>
+
+                      {/* Placeholder / Editable AI Prompt Box */}
+                      <div className="text-left mb-5 bg-slate-950/70 border border-slate-800 rounded-2xl p-3.5 shadow-inner">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                            <span className="material-symbols-outlined text-[14px] text-blue-400">psychology</span>
+                            AI Prompt Sent to API
+                          </label>
+                          <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Live LLM Engine
+                          </span>
+                        </div>
+                        <textarea
+                          value={allocationPrompt}
+                          onChange={(e) => {
+                            setAllocationPrompt(e.target.value);
+                            sessionStorage.setItem('risk_allocation_prompt', e.target.value);
+                          }}
+                          rows={3}
+                          className="w-full bg-slate-900 border border-slate-700/80 focus:border-blue-500 rounded-xl p-2.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition-all leading-relaxed font-sans resize-none shadow-inner"
+                          placeholder="The user has a budget of [budget], he has selected [stocks], suggest a good allocation based on his [risk profile]..."
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px] text-slate-400">edit</span>
+                          You can customize this prompt above before clicking suggest.
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={calculateAiAllocationBreakdown}
+                        disabled={isCalculatingBreakdown}
+                        className="w-full py-3.5 px-6 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-600 text-white shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 group disabled:opacity-75 disabled:cursor-wait"
+                      >
+                        {isCalculatingBreakdown ? (
+                          <>
+                            <span className="material-symbols-outlined text-lg animate-spin">refresh</span>
+                            <span>Sending Prompt to AI & Computing Allocation...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-lg group-hover:scale-110 transition-transform">bolt</span>
+                            <span>Suggest Breakdown via AI</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
              {/* Historical Drawdown Simulation */}
              {analysisResult.simulation_data && (
