@@ -257,7 +257,7 @@ Always end with: ⚠️ Invest at your own risk.`;
       for (const modelId of candidateModels) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 9000); // 9-second timeout per model
+          const timeoutId = setTimeout(() => controller.abort(), 4000); // 4-second fast timeout per model
 
           const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
