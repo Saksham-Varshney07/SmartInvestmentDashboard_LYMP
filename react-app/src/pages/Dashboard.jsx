@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { AiContext } from '../context/AiContext';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { fetchPortfolio as fetchPortfolioData } from '../services/apiClient';
 
 export default function Dashboard() {
   const { currentUser } = useContext(AuthContext);
@@ -23,9 +24,8 @@ export default function Dashboard() {
     if (!currentUser) return;
     setIsRefreshing(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/portfolio/${currentUser.user_id}?type=${portfolioType}`);
-      const data = await res.json();
-      if (data.status === 'success') {
+      const data = await fetchPortfolioData(currentUser.user_id, portfolioType);
+      if (data && data.status === 'success') {
         setPortfolio(data);
       }
     } catch (e) {

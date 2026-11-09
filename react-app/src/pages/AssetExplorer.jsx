@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getStockAnalysis } from '../services/apiClient';
 
 const ASSET_UNIVERSE = [
   { symbol: 'RELIANCE.NS', name: 'Reliance Industries', type: 'Stock', sector: 'Energy' },
@@ -42,8 +43,7 @@ export default function AssetExplorer() {
     }
     setLoading(prev => ({ ...prev, [symbol]: true }));
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/analyze/${symbol}`);
-      const result = await res.json();
+      const result = await getStockAnalysis(symbol);
       if (result?.analysis) {
         setAssetData(prev => ({ ...prev, [symbol]: result.analysis }));
       }

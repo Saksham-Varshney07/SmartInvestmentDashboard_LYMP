@@ -5,6 +5,7 @@ import { motion, useMotionValue, useTransform, AnimatePresence, animate } from '
 import { AuthContext } from '../context/AuthContext';
 import { AiContext } from '../context/AiContext';
 import { cleanModelOutput, getActiveApiKey } from '../services/aiService';
+import { calculatePortfolioRisk, applyBlueprint as applyBlueprintService, searchAutocomplete, getMarketTrend } from '../services/apiClient';
 
 const SwipeCard = ({ card, onSwipe, index, isTop, triggerSwipe }) => {
   const x = useMotionValue(0);
@@ -398,20 +399,12 @@ CRITICAL RULES:
     }
 
     try {
-      // Enhance with live backend price data if backend server is reachable
+      // Enhance with live price data
       const withRealData = await Promise.all(parsed.map(async (card) => {
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 2000);
-          const res = await fetch(`http://127.0.0.1:8000/api/market-trend?symbol=${encodeURIComponent(card.ticker)}`, {
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-          if (res.ok) {
-            const trendData = await res.json();
-            if (trendData.trend && Array.isArray(trendData.trend) && trendData.trend.length > 0) {
-              return { ...card, historical_trend: trendData.trend.slice(-15) };
-            }
+          const trendData = await getMarketTrend(card.ticker);
+          if (trendData?.trend && Array.isArray(trendData.trend) && trendData.trend.length > 0) {
+            return { ...card, historical_trend: trendData.trend.slice(-15) };
           }
         } catch (e) {
           // Graceful fallback to built-in trend
@@ -548,13 +541,12 @@ CRITICAL RULES:
     }
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/search?q=${stockInput}`);
-        const data = await res.json();
-        if (data.results) {
-           setSuggestions(data.results.slice(0, 5));
+        const results = await searchAutocomplete(stockInput);
+        if (results) {
+           setSuggestions(results.slice(0, 5));
         }
       } catch (err) {}
-    }, 300);
+    }, 250);
     return () => clearTimeout(timer);
   }, [stockInput]);
 
@@ -604,25 +596,16 @@ CRITICAL RULES:
         duration,
         risk_profile: riskProfile
       };
-      const response = await fetch('http://127.0.0.1:8000/api/portfolio-risk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Failed to analyze portfolio. Some stocks may be invalid or have conflicting trading calendars.");
+      const analysis = await calculatePortfolioRisk(payload);
+      if (analysis) {
+        setAnalysisResult(analysis);
+        setStep(3);
+      } else {
+        throw new Error("Failed to analyze portfolio.");
       }
-      
-      const data = await response.json();
-      setAnalysisResult(data.analysis);
-      setStep(3);
     } catch (err) {
       console.error(err);
-      alert(err.message || "Failed to analyze portfolio. Ensure backend is running.");
+      alert(err.message || "Failed to analyze portfolio.");
     } finally {
       setLoading(false);
     }
@@ -640,13 +623,8 @@ CRITICAL RULES:
     if (!currentUser || !confirmApply) return;
     
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/portfolio/${currentUser.user_id}/apply_blueprint?type=sandbox`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allocations: confirmApply.allocations })
-      });
-      const data = await response.json();
-      if (data.status === 'success') {
+      const res = await applyBlueprintService(currentUser.user_id, confirmApply.allocations);
+      if (res?.status === 'success') {
         alert('Blueprint successfully copied to your Sandbox Portfolio! Redirecting...');
         navigate('/portfolio', { state: { targetPortfolio: 'sandbox' } });
       } else {

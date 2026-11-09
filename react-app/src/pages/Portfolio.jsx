@@ -4,6 +4,12 @@ import Shepherd from 'shepherd.js';
 import { AuthContext } from '../context/AuthContext';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { calculateClientXirr } from '../utils/finance';
+import { 
+  fetchPortfolio as fetchPortfolioData, 
+  savePortfolioTransaction, 
+  deletePortfolioTransaction, 
+  searchAutocomplete 
+} from '../services/apiClient';
 
 export default function Portfolio() {
   const { currentUser } = useContext(AuthContext);
@@ -93,9 +99,8 @@ export default function Portfolio() {
     if (!currentUser) return;
     setIsRefreshing(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/portfolio/${currentUser.user_id}?type=${portfolioType}`);
-      const data = await res.json();
-      if (data.status === 'success') {
+      const data = await fetchPortfolioData(currentUser.user_id, portfolioType);
+      if (data && data.status === 'success') {
         setPortfolio(data);
       }
     } catch (e) {
@@ -118,30 +123,19 @@ export default function Portfolio() {
     if (!txForm.symbol || !txForm.shares || !txForm.price_at_purchase) return;
     
     try {
-      const url = txForm.id 
-        ? `http://127.0.0.1:8000/api/portfolio/transaction/${txForm.id}`
-        : 'http://127.0.0.1:8000/api/portfolio/transaction';
-      
-      const method = txForm.id ? 'PUT' : 'POST';
+      await savePortfolioTransaction({
+        id: txForm.id,
+        user_id: currentUser?.user_id,
+        symbol: txForm.symbol,
+        transaction_type: txForm.transaction_type,
+        shares: parseFloat(txForm.shares),
+        price_at_purchase: parseFloat(txForm.price_at_purchase),
+        portfolio_type: portfolioType
+      }, portfolioType);
 
-      const res = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: currentUser?.user_id,
-          symbol: txForm.symbol,
-          transaction_type: txForm.transaction_type,
-          shares: parseFloat(txForm.shares),
-          price_at_purchase: parseFloat(txForm.price_at_purchase),
-          portfolio_type: portfolioType
-        })
-      });
-      const data = await res.json();
-      if (data.status === 'success') {
-        setShowTxModal(false);
-        setTxForm({ id: null, symbol: '', transaction_type: 'BUY', shares: '', price_at_purchase: '' });
-        fetchPortfolio();
-      }
+      setShowTxModal(false);
+      setTxForm({ id: null, symbol: '', transaction_type: 'BUY', shares: '', price_at_purchase: '' });
+      fetchPortfolio();
     } catch (e) {
       console.error(e);
     }
@@ -149,9 +143,8 @@ export default function Portfolio() {
 
   const deleteTransaction = async (id) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/portfolio/transaction/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.status === 'success') fetchPortfolio();
+      await deletePortfolioTransaction(id, portfolioType);
+      fetchPortfolio();
     } catch(e) {
       console.error(e);
     }
@@ -181,15 +174,14 @@ export default function Portfolio() {
     setShowTxSuggestions(true);
     txSearchTimeoutRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/search?q=${val}`);
-        const data = await res.json();
-        setTxSuggestions(data.results || []);
+        const results = await searchAutocomplete(val);
+        setTxSuggestions(results || []);
       } catch (e) {
         console.error(e);
       } finally {
         setIsTxSearching(false);
       }
-    }, 400); 
+    }, 250); 
   };
 
   const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val || 0);

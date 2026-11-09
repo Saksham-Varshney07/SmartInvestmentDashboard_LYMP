@@ -10,6 +10,7 @@ import {
   ReferenceLine,
   CartesianGrid
 } from 'recharts';
+import { getMarketTrend, getStockAnalysis } from '../services/apiClient';
 
 export default function ModelTrajectoryGraph({
   symbol,
@@ -57,16 +58,11 @@ export default function ModelTrajectoryGraph({
 
       // 1. Fetch historical trend
       try {
-        const trendRes = await fetch(
-          `http://127.0.0.1:8000/api/market-trend?symbol=${encodeURIComponent(activeSymbol)}&timeframe=1mo`
-        );
-        if (trendRes.ok) {
-          const trendJson = await trendRes.json();
-          if (trendJson.points && trendJson.points.length > 0) {
-            points = trendJson.points;
-            const lastClose = points[points.length - 1]?.close;
-            if (lastClose) currentPrice = lastClose;
-          }
+        const trendJson = await getMarketTrend(activeSymbol, '1mo');
+        if (trendJson.points && trendJson.points.length > 0) {
+          points = trendJson.points;
+          const lastClose = points[points.length - 1]?.close;
+          if (lastClose) currentPrice = lastClose;
         }
       } catch (err) {
         console.warn('Could not fetch market-trend for trajectory:', err);
@@ -75,16 +71,11 @@ export default function ModelTrajectoryGraph({
       // 2. Fetch XGBoost quant analysis if not passed in
       if (!quantData?.xgboost_prob) {
         try {
-          const analyzeRes = await fetch(
-            `http://127.0.0.1:8000/api/analyze/${encodeURIComponent(activeSymbol)}`
-          );
-          if (analyzeRes.ok) {
-            const analyzeJson = await analyzeRes.json();
-            if (analyzeJson.analysis && isMounted) {
-              setQuantData(analyzeJson.analysis);
-              if (analyzeJson.analysis.latest_price) {
-                currentPrice = analyzeJson.analysis.latest_price;
-              }
+          const analyzeJson = await getStockAnalysis(activeSymbol);
+          if (analyzeJson?.analysis && isMounted) {
+            setQuantData(analyzeJson.analysis);
+            if (analyzeJson.analysis.latest_price) {
+              currentPrice = analyzeJson.analysis.latest_price;
             }
           }
         } catch (err) {

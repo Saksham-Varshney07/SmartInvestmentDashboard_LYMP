@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { AiContext } from '../context/AiContext';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { getStockAnalysis, getMarketTrend, savePortfolioTransaction } from '../services/apiClient';
 
 const StockState = ({ kind, symbol, message, onRetry }) => {
   const isLoading = kind === 'loading';
@@ -95,16 +96,8 @@ export default function StockSearch() {
       try {
         setLoading(true);
         setFetchError(null);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2500);
-        const response = await fetch(`http://127.0.0.1:8000/api/analyze/${stockname}`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        const result = await response.json();
-        if (!response.ok) {
-          setData(generateFallbackStock(stockname));
-        } else {
-          setData(result);
-        }
+        const result = await getStockAnalysis(stockname);
+        setData(result);
       } catch (err) {
         console.warn('Backend server unreachable (mobile/cloud mode), loading client-side market analysis:', err);
         setData(generateFallbackStock(stockname));
@@ -173,12 +166,9 @@ export default function StockSearch() {
       if ((timeRange === '1D' || timeRange === '1W') && stockname && !intradayData[timeRange]) {
         try {
           const tf = timeRange === '1D' ? '1d' : '5d';
-          const res = await fetch(`http://127.0.0.1:8000/api/market-trend?symbol=${encodeURIComponent(stockname)}&timeframe=${tf}`);
-          if (res.ok) {
-            const json = await res.json();
-            if (json.points && json.points.length > 0) {
-              setIntradayData(prev => ({ ...prev, [timeRange]: json.points }));
-            }
+          const json = await getMarketTrend(stockname, tf);
+          if (json.points && json.points.length > 0) {
+            setIntradayData(prev => ({ ...prev, [timeRange]: json.points }));
           }
         } catch (e) {
           console.error('Error fetching intraday trend:', e);
@@ -579,18 +569,13 @@ export default function StockSearch() {
               <button onClick={async () => {
                 if (!currentUser) return;
                 try {
-                  await fetch('http://127.0.0.1:8000/api/portfolio/transaction', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      user_id: currentUser.user_id,
-                      symbol: f.shortName || stockname.toUpperCase(),
-                      transaction_type: 'BUY',
-                      shares: 10,
-                      price_at_purchase: startPrice > 0 ? startPrice : latestPrice,
-                      portfolio_type: 'sandbox'
-                    })
-                  });
+                  await savePortfolioTransaction({
+                    user_id: currentUser.user_id,
+                    symbol: f.shortName || stockname.toUpperCase(),
+                    transaction_type: 'BUY',
+                    shares: 10,
+                    price_at_purchase: startPrice > 0 ? startPrice : latestPrice,
+                  }, 'sandbox');
                   setShowBuyModal(true);
                 } catch (e) {
                   console.error(e);

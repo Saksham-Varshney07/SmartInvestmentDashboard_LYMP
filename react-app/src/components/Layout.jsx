@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { AiContext } from '../context/AiContext';
 import AskAiModal from './AskAiModal';
+import { searchAutocomplete, loginUser } from '../services/apiClient';
 
 export default function Layout({ children }) {
   const { currentUser, setCurrentUser } = useContext(AuthContext);
@@ -58,46 +59,23 @@ export default function Layout({ children }) {
       return;
     }
     setIsSubmitting(true);
-
-    const fallbackUser = {
-      status: 'success',
-      user_id: 1,
-      portfolio_id: 1,
-      username: username,
-      full_name: (isSignup ? loginForm.full_name?.trim() : '') || username,
-      risk_profile: (isSignup ? loginForm.risk_profile : '') || 'Balanced',
-      investment_horizon: (isSignup ? loginForm.investment_horizon : '') || 'Medium-term'
-    };
-
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch('http://127.0.0.1:8000/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: username,
-          full_name: isSignup ? loginForm.full_name.trim() : '',
-          risk_profile: isSignup ? loginForm.risk_profile : '',
-          investment_horizon: isSignup ? loginForm.investment_horizon : '',
-          is_signup: isSignup
-        }),
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      const data = await res.json();
-      if (data && data.status === 'success') {
-        setCurrentUser(data);
-        return;
-      }
+      const user = await loginUser(loginForm, isSignup);
+      setCurrentUser(user);
     } catch (e) {
-      console.warn('Backend login unreachable (cloud / mobile mode). Continuing with local session.');
+      console.error('Login error:', e);
+      setCurrentUser({
+        status: 'success',
+        user_id: 1,
+        portfolio_id: 1,
+        username: username,
+        full_name: (isSignup ? loginForm.full_name?.trim() : '') || username,
+        risk_profile: (isSignup ? loginForm.risk_profile : '') || 'Balanced',
+        investment_horizon: (isSignup ? loginForm.investment_horizon : '') || 'Medium-term'
+      });
     } finally {
       setIsSubmitting(false);
     }
-
-    // Always succeed so user can log in on Safari, mobile, or cloud without being blocked
-    setCurrentUser(fallbackUser);
   };
 
   const handleSearchChange = (e) => {
@@ -113,15 +91,14 @@ export default function Layout({ children }) {
     setShowSuggestions(true);
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/search?q=${val}`);
-        const data = await res.json();
-        setSuggestions(data.results || []);
+        const results = await searchAutocomplete(val);
+        setSuggestions(results || []);
       } catch (e) {
         console.error(e);
       } finally {
         setIsSearching(false);
       }
-    }, 400); 
+    }, 250); 
   };
 
   const selectSymbol = (symbol) => {

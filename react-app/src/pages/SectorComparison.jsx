@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { formatINR, formatMarketCap } from '../utils/finance';
+import { getTopSectors } from '../services/apiClient';
 
 export default function SectorComparison() {
   const [data, setData] = useState({ sectors: {}, all_stocks: [], generated_at: '' });
@@ -16,13 +17,11 @@ export default function SectorComparison() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/top-sectors');
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const json = await res.json();
-      if (json.status === 'success') {
+      const json = await getTopSectors();
+      if (json && json.status === 'success') {
         setData(json);
       } else {
-        throw new Error(json.message || 'Failed to load sector data');
+        throw new Error(json?.message || 'Failed to load sector data');
       }
     } catch (err) {
       console.error('Error fetching sectors:', err);
