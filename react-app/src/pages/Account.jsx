@@ -14,7 +14,7 @@ export default function Account() {
   if (!currentUser) return null;
 
   return (
-    <div className="max-w-[1440px] mx-auto px-6 py-12">
+    <div className="page-shell account-page max-w-[1440px] mx-auto px-6 py-12">
       <div className="max-w-2xl mx-auto bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-8 transition-colors">
         <div className="flex items-center gap-6 mb-8 pb-8 border-b border-slate-100 dark:border-slate-800">
            <div className="w-24 h-24 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-3xl font-bold uppercase">

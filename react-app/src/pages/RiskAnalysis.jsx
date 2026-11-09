@@ -1076,12 +1076,22 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased font-['Inter'] transition-colors duration-300">
+    <div className="page-shell risk-page min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased font-['Inter'] transition-colors duration-300">
 
       <main className="max-w-[1240px] mx-auto px-6 py-4 pb-12">
-        <div className="flex items-center gap-3 mb-4">
-           <span className="material-symbols-outlined text-4xl text-blue-600 dark:text-blue-400">health_and_safety</span>
-           <h1 className="text-4xl font-bold text-slate-800 dark:text-white">AI Portfolio Doctor</h1>
+        <div className="risk-header">
+          <div className="risk-title-lockup">
+            <span className="material-symbols-outlined risk-title-icon">health_and_safety</span>
+            <div><h1>AI Portfolio Doctor</h1><p>Understand your risk profile, test a basket, and shape a more resilient plan.</p></div>
+          </div>
+          <ol className="risk-progress" aria-label="Analysis progress">
+            {['Investor profile', 'Build portfolio', 'Review analysis'].map((label, index) => (
+              <li key={label} className={`${step === index + 1 ? 'is-current' : ''} ${step > index + 1 ? 'is-complete' : ''}`}>
+                <span className="risk-step-number">{step > index + 1 ? <span className="material-symbols-outlined">check</span> : index + 1}</span>
+                <span className="risk-step-label">{label}</span>
+              </li>
+            ))}
+          </ol>
         </div>
 
         {step === 1 && (

@@ -100,9 +100,13 @@ export default function SipPlanner() {
   ];
 
   return (
-    <div className="bg-[#f8f9fa] dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-100 antialiased font-['Inter'] transition-colors duration-300">
+    <div className="page-shell sip-page bg-[#f8f9fa] dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-100 antialiased font-['Inter'] transition-colors duration-300">
       <main className="max-w-[1240px] mx-auto px-6 py-8 pb-32">
-        <h1 className="text-4xl font-bold mb-8 text-slate-800 dark:text-white">SIP Calculator</h1>
+        <div className="sip-heading">
+          <div className="eyebrow">PLANNING TOOL <span>·</span> SYSTEMATIC INVESTING</div>
+          <h1 className="text-4xl font-bold text-slate-800 dark:text-white">SIP Calculator</h1>
+          <p>See how regular contributions can grow over time, with inflation and market scenarios in view.</p>
+        </div>
 
         {/* SIP Calculator Component */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 transition-colors">

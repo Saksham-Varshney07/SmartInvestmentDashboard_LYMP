@@ -141,7 +141,7 @@ export default function SectorComparison() {
   };
 
   return (
-    <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-8">
+    <div className="page-shell screener-page max-w-[1440px] mx-auto px-4 sm:px-6 py-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>

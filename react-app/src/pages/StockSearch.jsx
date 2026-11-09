@@ -4,6 +4,26 @@ import { AuthContext } from '../context/AuthContext';
 import { AiContext } from '../context/AiContext';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
+const StockState = ({ kind, symbol, message, onRetry }) => {
+  const isLoading = kind === 'loading';
+  const isEmpty = kind === 'empty';
+  return (
+    <main className={`stock-state-page stock-state-${kind}`} role={isLoading ? 'status' : 'alert'}>
+      <div className="stock-state-card">
+        <div className="stock-state-orbit"><span className={`material-symbols-outlined ${isLoading ? 'stock-state-spinner' : ''}`}>{isLoading ? 'query_stats' : isEmpty ? 'search_off' : 'monitoring'}</span></div>
+        <div className="eyebrow">{isLoading ? 'MARKET INTELLIGENCE' : 'STOCK RESEARCH'}</div>
+        <h1>{isLoading ? 'Building your market view' : isEmpty ? `No market data for ${symbol}` : 'Analysis is temporarily unavailable'}</h1>
+        <p>{isLoading ? `Fetching live market data and fundamentals for ${symbol}.` : message}</p>
+        <div className="stock-state-actions">
+          {!isLoading && <button type="button" onClick={onRetry}>Try again <span className="material-symbols-outlined">refresh</span></button>}
+          <Link to="/">Back to dashboard <span className="material-symbols-outlined">arrow_forward</span></Link>
+        </div>
+        {isLoading && <div className="stock-state-progress"><span /></div>}
+      </div>
+    </main>
+  );
+};
+
 export default function StockSearch() {
   const { stockname } = useParams();
   const navigate = useNavigate();
@@ -113,45 +133,19 @@ export default function StockSearch() {
   }, [timeRange, stockname, intradayData]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-12 text-slate-500 dark:text-slate-400 bg-transparent transition-colors duration-300">
-         <span className="material-symbols-outlined text-4xl mb-4 animate-spin">data_usage</span>
-         <p>Fetching live market data and fundamentals...</p>
-      </div>
-    );
+    return <StockState kind="loading" symbol={stockname} />;
   }
 
   if (fetchError) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-12 bg-transparent transition-colors duration-300">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-6 rounded-xl flex items-start gap-3 max-w-md">
-          <span className="material-symbols-outlined mt-0.5">error</span>
-          <div>
-            <p className="font-bold mb-1">Analysis Failed</p>
-            <p className="text-sm">{fetchError}</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <StockState kind="error" symbol={stockname} message={fetchError} onRetry={() => window.location.reload()} />;
   }
 
   if (!data) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-12 text-slate-500 dark:text-slate-400 bg-[#f8f9fa] dark:bg-slate-950 transition-colors duration-300">
-        <span className="material-symbols-outlined text-4xl mb-4 text-slate-300 dark:text-slate-600">search_off</span>
-        <p>No data returned for <strong>{stockname}</strong>. The symbol may be invalid.</p>
-      </div>
-    );
+    return <StockState kind="empty" symbol={stockname} message="The symbol may be invalid, or no quote is available right now." onRetry={() => window.location.reload()} />;
   }
 
   if (data?.detail || data?.error) {
-    return (
-      <div className="p-8 max-w-[1440px] mx-auto antialiased font-['Inter']">
-        <div className="bg-red-50 text-red-600 p-4 rounded-lg flex items-center gap-2">
-           <span className="material-symbols-outlined">error</span> Error: {data.detail || data.error}
-        </div>
-      </div>
-    );
+    return <StockState kind="error" symbol={stockname} message={data.detail || data.error} onRetry={() => window.location.reload()} />;
   }
 
   const hist = data?.history || [];
@@ -225,7 +219,7 @@ export default function StockSearch() {
 
 
   return (
-    <div className="min-h-screen bg-transparent antialiased font-['Inter'] transition-colors duration-300">
+    <div className="page-shell stock-page min-h-screen bg-transparent antialiased font-['Inter'] transition-colors duration-300">
       <main className="max-w-[1440px] mx-auto px-6 py-6 pb-20">
         
         {/* Breadcrumb & Title */}

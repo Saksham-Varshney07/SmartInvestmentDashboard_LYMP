@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import Dashboard from './pages/Dashboard';
 import SipPlanner from './pages/SipPlanner';
 import StockSearch from './pages/StockSearch';
@@ -16,16 +16,19 @@ import ScrollToTop from './components/ScrollToTop';
 
 import SectorComparison from './pages/SectorComparison';
 
-const PageTransition = ({ children }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 15 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -15 }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-  >
-    {children}
-  </motion.div>
-);
+const PageTransition = ({ children }) => {
+  const reduceMotion = useReducedMotion();
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: reduceMotion ? 0 : -6 }}
+      transition={{ duration: reduceMotion ? 0.12 : 0.34, ease: "easeOut" }}
+    >
+      {children}
+    </motion.div>
+  );
+};
 
 const AnimatedRoutes = () => {
   const location = useLocation();

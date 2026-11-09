@@ -114,15 +114,31 @@ export default function Layout({ children }) {
 
   const getNavClass = (path) => {
     return location.pathname === path || (path !== '/' && location.pathname.startsWith(path))
-      ? "text-blue-600 dark:text-blue-400 font-semibold border-b-2 border-blue-600 dark:border-blue-400 pb-1 text-sm tracking-tight"
-      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors text-sm font-medium tracking-tight";
+      ? "nav-link nav-link-active"
+      : "nav-link";
   };
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center p-6 antialiased font-['Inter'] py-12 transition-colors duration-300">
-        <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-8 border border-slate-100 dark:border-slate-800 transition-colors">
-           <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6 mx-auto">
+      <div className="auth-screen min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center p-6 antialiased font-['Inter'] py-12 transition-colors duration-300">
+        <div className="auth-layout">
+        <aside className="auth-story">
+          <Link to="/" className="auth-wordmark"><span className="brand-mark"><span className="material-symbols-outlined">show_chart</span></span> Smart Investment Dashboard</Link>
+          <div className="auth-story-copy">
+            <span className="auth-kicker"><span /> INVEST WITH A CLEARER VIEW</span>
+            <h1>Make your next move<br/><em>with confidence.</em></h1>
+            <p>One workspace for your portfolio, market research, and long-term plans.</p>
+          </div>
+          <div className="auth-visual" aria-hidden="true">
+            <div className="auth-visual-label"><span>BUILT FOR THE LONG VIEW</span><span className="auth-visual-dot">● &nbsp;Connected by design</span></div>
+            <svg viewBox="0 0 520 180" preserveAspectRatio="none"><defs><linearGradient id="authLineFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#a9c7ff" stopOpacity=".32"/><stop offset="1" stopColor="#a9c7ff" stopOpacity="0"/></linearGradient></defs><path className="auth-chart-fill" d="M0 145 C35 132 45 144 77 119 S121 131 150 98 S190 114 219 89 S260 112 290 69 S337 87 361 51 S405 78 432 37 S480 56 520 15 V180 H0Z"/><path className="auth-chart-line" d="M0 145 C35 132 45 144 77 119 S121 131 150 98 S190 114 219 89 S260 112 290 69 S337 87 361 51 S405 78 432 37 S480 56 520 15"/></svg>
+            <div className="auth-chart-axis"><span>PORTFOLIO</span><span>RISK</span><span>PLANNING</span></div>
+          </div>
+          <div className="auth-features"><div><span className="material-symbols-outlined">account_balance_wallet</span><span>Portfolio<br/>tracking</span></div><div><span className="material-symbols-outlined">query_stats</span><span>Risk-aware<br/>insights</span></div><div><span className="material-symbols-outlined">event_repeat</span><span>Smarter<br/>planning</span></div></div>
+        </aside>
+        <div className="auth-card w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-8 border border-slate-100 dark:border-slate-800 transition-colors">
+           <div className="auth-mobile-brand"><span className="brand-mark"><span className="material-symbols-outlined">show_chart</span></span> Smart Investment Dashboard</div>
+           <div className="auth-icon w-16 h-16 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6 mx-auto">
              <span className="material-symbols-outlined text-3xl">{isSignup ? 'person_add' : 'account_circle'}</span>
            </div>
            <h2 className="text-2xl font-bold text-center text-slate-900 dark:text-white mb-2">{isSignup ? 'Create Account' : 'Welcome Back'}</h2>
@@ -204,18 +220,22 @@ export default function Layout({ children }) {
               </button>
            </div>
         </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-100 antialiased font-['Inter'] flex flex-col transition-colors duration-300">
+    <div className="app-shell bg-slate-50 dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-100 antialiased font-['Inter'] flex flex-col transition-colors duration-300">
       {/* Global Navbar */}
-      <header className="fixed top-0 w-full z-50 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 transition-colors">
-        <div className="flex justify-between items-center max-w-[1440px] mx-auto px-6 h-16">
-          <div className="flex items-center gap-8">
-            <Link to="/" className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Smart Investment Dashboard</Link>
-            <nav className="hidden md:flex gap-6 items-center mt-1">
+      <header className="app-header fixed top-0 w-full z-50 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 transition-colors">
+        <div className="app-header-inner max-w-[1440px] mx-auto px-6 min-h-16">
+          <div className="brand-and-nav">
+            <Link to="/" className="brand-lockup">
+              <span className="brand-mark"><span className="material-symbols-outlined">show_chart</span></span>
+              <span className="brand-name">Smart Investment Dashboard</span>
+            </Link>
+            <nav className="primary-nav">
               <Link id="nav-dashboard" className={getNavClass('/')} to="/">Dashboard</Link>
               <Link id="nav-riskanalysis" className={getNavClass('/riskanalysis')} to="/riskanalysis">Risk Analysis</Link>
               <Link id="nav-portfolio" className={getNavClass('/portfolio')} to="/portfolio">Portfolio</Link>
@@ -224,9 +244,10 @@ export default function Layout({ children }) {
               <Link id="nav-assetexplorer" className={getNavClass('/assetexplorer')} to="/assetexplorer">Asset Explorer</Link>
             </nav>
           </div>
-          <div className="flex items-center gap-4 relative" ref={searchRef}>
+          <div className="header-tools flex items-center gap-4 relative" ref={searchRef}>
             <div id="nav-search" className="relative hidden sm:block">
               <input 
+                aria-label="Search markets"
                 className="bg-slate-100 dark:bg-slate-800 dark:text-white border-none rounded-lg py-1.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500 w-64 outline-none transition-colors" 
                 placeholder="Search markets..." 
                 type="text"
@@ -259,7 +280,7 @@ export default function Layout({ children }) {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700">
+            <div className="account-tools flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700">
                <button 
                 onClick={() => window.dispatchEvent(new Event('trigger-onboarding'))} 
                 className="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -284,7 +305,7 @@ export default function Layout({ children }) {
       </header>
       
       {/* Page Content */}
-      <div className="pt-16 flex-1">
+      <div className="page-content pt-16 flex-1">
          {children}
       </div>
 

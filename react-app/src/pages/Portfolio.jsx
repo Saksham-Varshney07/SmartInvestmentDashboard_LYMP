@@ -218,7 +218,7 @@ export default function Portfolio() {
   }, [portfolio.summary, portfolio.assets]);
 
   return (
-    <div className="max-w-[1440px] mx-auto px-6 py-8">
+    <div className="page-shell portfolio-page max-w-[1440px] mx-auto px-6 py-8">
       <div className="flex justify-between items-end mb-8">
         <div>
           <div className="flex flex-wrap items-center gap-3 mb-2">

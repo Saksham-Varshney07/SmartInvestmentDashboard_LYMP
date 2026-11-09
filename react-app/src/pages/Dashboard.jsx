@@ -169,14 +169,15 @@ export default function Dashboard() {
   }, [portfolio, portfolioType, setAiPageData]);
 
   return (
-    <div className="max-w-[1440px] mx-auto px-6 py-8 mb-20 lg:mb-0">
+    <div className="page-shell dashboard-page max-w-[1440px] mx-auto px-6 py-8 mb-20 lg:mb-0">
       
-      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="overview-heading mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
          <div>
-           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Dashboard Overview</h1>
-           <p className="text-slate-500 dark:text-slate-400 mt-1">Welcome back, {currentUser?.username}. Here's a quick summary of your wealth.</p>
+           <div className="eyebrow"><span className="live-indicator" /> YOUR FINANCIAL OVERVIEW</div>
+           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Good to see you, {currentUser?.username}.</h1>
+           <p className="text-slate-500 dark:text-slate-400 mt-1">Here’s how your investments are moving today.</p>
          </div>
-         <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 self-start md:self-auto shrink-0">
+         <div className="portfolio-switch flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 self-start md:self-auto shrink-0" aria-label="Portfolio type">
            <button 
              onClick={() => setPortfolioType('real')}
              className={`px-6 py-1.5 rounded-md font-semibold text-sm transition-all ${portfolioType === 'real' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
@@ -208,7 +209,7 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 flex flex-col justify-between transition-colors">
+        <div className="dashboard-value-card bg-white dark:bg-slate-900 p-6 rounded-lg shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 flex flex-col justify-between transition-colors">
           <div>
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Live Portfolio Value</p>
             <div className="flex items-center gap-3">

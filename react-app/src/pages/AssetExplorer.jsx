@@ -71,7 +71,7 @@ export default function AssetExplorer() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] dark:bg-slate-950 antialiased font-['Inter'] transition-colors duration-300">
+    <div className="page-shell asset-explorer-page min-h-screen bg-[#f8f9fa] dark:bg-slate-950 antialiased font-['Inter'] transition-colors duration-300">
       <main className="max-w-[1240px] mx-auto px-6 py-8 pb-32">
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-2">
