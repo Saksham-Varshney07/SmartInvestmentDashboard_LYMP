@@ -594,10 +594,14 @@ body::after {
 .auth-chart-axis, .auth-visual-label { color: rgba(245,235,220,.74); }
 .auth-features > div { color: rgba(249,241,228,.82); }
 .auth-features .material-symbols-outlined { color: #e7c9b6; }
-.auth-card { font-family: 'DM Sans', sans-serif; }
+.auth-card { font-family: 'DM Sans', sans-serif; position: relative; z-index: 10; }
 .auth-card h2 { font-family: var(--serif); font-size: 38px; font-weight: 400; }
+.auth-card button { cursor: pointer !important; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .auth-card button[type="submit"] { color: #fffaf0; border-radius: 999px; background: #627b72; box-shadow: none; }
 .auth-card button[type="submit"]:hover { background: #50685f; }
+@media (max-width: 768px) {
+  .auth-card form input, .auth-card form select { font-size: 16px !important; }
+}
 .fixed.bottom-6.right-6 { width: 50px; height: 50px; color: #fffaf0; background: #647a73; box-shadow: 0 9px 24px rgba(59,79,71,.24); }
 .fixed.bottom-6.right-6:hover { background: #50685f; box-shadow: 0 12px 27px rgba(59,79,71,.27); }
 .site-footer { display:flex; align-items:center; justify-content:space-between; gap:20px; width:min(1320px, calc(100% - 48px)); margin:30px auto 26px; padding:18px 0 4px; border-top:1px solid var(--workspace-line); color:var(--workspace-muted); font-size:10px; }

@@ -36,3 +36,5 @@ obj/
 *.userosscache
 *.sln.docstates
 runbook.md backend/tunnel.log
+
+.vercel/
