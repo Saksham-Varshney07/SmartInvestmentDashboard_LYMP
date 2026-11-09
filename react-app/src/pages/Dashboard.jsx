@@ -177,6 +177,22 @@ export default function Dashboard() {
            <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Good to see you, {currentUser?.username}.</h1>
            <p className="text-slate-500 dark:text-slate-400 mt-1">Here’s how your investments are moving today.</p>
          </div>
+         <div className="dashboard-hero-art" aria-hidden="true">
+           <svg viewBox="0 0 560 310" preserveAspectRatio="xMidYMid slice">
+             <defs>
+               <linearGradient id="stillroom-sky" x1="0" x2="1" y1="0" y2="1"><stop stopColor="#e9cbb8"/><stop offset="1" stopColor="#d6dfd7"/></linearGradient>
+               <linearGradient id="stillroom-water" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#9eaaa0"/><stop offset="1" stopColor="#718681"/></linearGradient>
+               <filter id="stillroom-soft"><feGaussianBlur stdDeviation="20"/></filter>
+             </defs>
+             <rect width="560" height="310" fill="url(#stillroom-sky)"/>
+             <circle cx="390" cy="88" r="63" fill="#f6e5cc" opacity=".78" filter="url(#stillroom-soft)"/>
+             <circle cx="390" cy="88" r="39" fill="#f5e3c9" opacity=".83"/>
+             <path d="M0 191C84 155 130 179 209 159s126-43 197-14 106 17 154-11v176H0Z" fill="#929d91" opacity=".78"/>
+             <path d="M0 220c97-31 173-21 257-6s171 27 303-8v104H0Z" fill="url(#stillroom-water)" opacity=".92"/>
+             <path d="M0 251c93-19 157-10 248 2s195 16 312-8M0 278c120-12 193 10 300 12s160-4 260-16" fill="none" stroke="#e8dfcf" strokeOpacity=".43" strokeWidth="1.2"/>
+             <path d="M35 178c60-15 108-15 168-2m165 22c56 11 104 12 157 1" fill="none" stroke="#f8f0e4" strokeOpacity=".6" strokeWidth="1"/>
+           </svg>
+         </div>
          <div className="portfolio-switch flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 self-start md:self-auto shrink-0" aria-label="Portfolio type">
            <button 
              onClick={() => setPortfolioType('real')}

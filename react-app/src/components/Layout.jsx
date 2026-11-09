@@ -130,8 +130,8 @@ export default function Layout({ children }) {
             <p>One workspace for your portfolio, market research, and long-term plans.</p>
           </div>
           <div className="auth-visual" aria-hidden="true">
-            <div className="auth-visual-label"><span>BUILT FOR THE LONG VIEW</span><span className="auth-visual-dot">● &nbsp;Connected by design</span></div>
-            <svg viewBox="0 0 520 180" preserveAspectRatio="none"><defs><linearGradient id="authLineFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#a9c7ff" stopOpacity=".32"/><stop offset="1" stopColor="#a9c7ff" stopOpacity="0"/></linearGradient></defs><path className="auth-chart-fill" d="M0 145 C35 132 45 144 77 119 S121 131 150 98 S190 114 219 89 S260 112 290 69 S337 87 361 51 S405 78 432 37 S480 56 520 15 V180 H0Z"/><path className="auth-chart-line" d="M0 145 C35 132 45 144 77 119 S121 131 150 98 S190 114 219 89 S260 112 290 69 S337 87 361 51 S405 78 432 37 S480 56 520 15"/></svg>
+            <div className="auth-visual-label"><span>A SPACE TO THINK AHEAD</span><span className="auth-visual-dot">● &nbsp;Your view, in one place</span></div>
+            <svg className="auth-landscape" viewBox="0 0 520 180" preserveAspectRatio="none" focusable="false"><defs><linearGradient id="authHorizon" x1="0" x2="1" y1="0" y2="1"><stop stopColor="#e7c9b6" stopOpacity=".72"/><stop offset="1" stopColor="#d8ded2" stopOpacity=".16"/></linearGradient></defs><circle cx="386" cy="66" r="31" fill="#f0ddc6" opacity=".9"/><path d="M0 117c58-19 105-6 155-24s83-6 137 9 92-11 127-20 64-1 101-13v111H0Z" fill="url(#authHorizon)"/><path d="M0 139c90-15 137 2 212 10s167-12 308-2v31H0Z" fill="#e3d4bd" opacity=".32"/><path d="M21 154c62-5 110 1 166 6m69-8c69 6 139-3 238 3" fill="none" stroke="#f2e5d4" strokeOpacity=".6" strokeWidth="1"/></svg>
             <div className="auth-chart-axis"><span>PORTFOLIO</span><span>RISK</span><span>PLANNING</span></div>
           </div>
           <div className="auth-features"><div><span className="material-symbols-outlined">account_balance_wallet</span><span>Portfolio<br/>tracking</span></div><div><span className="material-symbols-outlined">query_stats</span><span>Risk-aware<br/>insights</span></div><div><span className="material-symbols-outlined">event_repeat</span><span>Smarter<br/>planning</span></div></div>
@@ -308,6 +308,17 @@ export default function Layout({ children }) {
       <div className="page-content pt-16 flex-1">
          {children}
       </div>
+
+      <footer className="site-footer">
+        <Link to="/" className="site-footer-brand">Smart Investment Dashboard</Link>
+        <span>Tools for a longer view.</span>
+        <nav className="site-footer-links" aria-label="Footer navigation">
+          <Link to="/portfolio">Portfolio</Link>
+          <Link to="/riskanalysis">Risk analysis</Link>
+          <Link to="/sipplanner">SIP planner</Link>
+          <Link to="/assetexplorer">Explore assets</Link>
+        </nav>
+      </footer>
 
       {/* Global Ask AI FAB */}
       {currentUser && (
