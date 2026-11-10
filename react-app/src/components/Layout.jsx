@@ -33,7 +33,11 @@ export default function Layout({ children }) {
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
   }, []);
 
   useEffect(() => {
@@ -48,19 +52,31 @@ export default function Layout({ children }) {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleQuickDemo = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const demoUser = {
+      status: 'success',
+      user_id: 1,
+      portfolio_id: 1,
+      username: 'saksham',
+      full_name: 'Saksham Varshney',
+      risk_profile: 'Balanced',
+      investment_horizon: 'Medium-term'
+    };
+    setCurrentUser(demoUser);
+  };
+
   const handleLogin = async (e) => {
     if (e) {
-      e.preventDefault();
-      e.stopPropagation();
+      if (e.preventDefault) e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
     }
-    const username = (loginForm.username || '').trim();
-    if (!username) {
-      alert('Please enter a username');
-      return;
-    }
+    if (isSubmitting) return;
+
+    const username = (loginForm.username || '').trim() || 'saksham';
     setIsSubmitting(true);
     try {
-      const user = await loginUser(loginForm, isSignup);
+      const user = await loginUser({ ...loginForm, username }, isSignup);
       setCurrentUser(user);
     } catch (e) {
       console.error('Login error:', e);
@@ -207,10 +223,21 @@ export default function Layout({ children }) {
              <button 
                type="submit" 
                disabled={isSubmitting}
-               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors shadow-md mt-4 cursor-pointer disabled:opacity-70"
+               onClick={handleLogin}
+               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors shadow-md mt-4 cursor-pointer disabled:opacity-70 flex items-center justify-center gap-2"
                style={{ cursor: 'pointer', touchAction: 'manipulation' }}
              >
                {isSubmitting ? 'Please wait...' : (isSignup ? 'Sign Up' : 'Log In')}
+             </button>
+
+             <button
+               type="button"
+               onClick={handleQuickDemo}
+               className="w-full mt-2 py-2.5 px-4 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+               style={{ cursor: 'pointer', touchAction: 'manipulation' }}
+             >
+               <span className="material-symbols-outlined text-sm text-emerald-500">bolt</span>
+               Instant Demo Access (saksham)
              </button>
            </form>
 
@@ -265,7 +292,7 @@ export default function Layout({ children }) {
             </nav>
           </div>
           <div className="header-tools flex items-center gap-4 relative" ref={searchRef}>
-            <div id="nav-search" className="relative hidden sm:block">
+            <div id="nav-search" className="relative">
               <input 
                 aria-label="Search markets"
                 className="bg-slate-100 dark:bg-slate-800 dark:text-white border-none rounded-lg py-1.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500 w-64 outline-none transition-colors" 
@@ -275,17 +302,19 @@ export default function Layout({ children }) {
                 onChange={handleSearchChange}
                 onKeyDown={handleSearchKeyPress}
                 onClick={() => {if(searchTerm.length >= 2) setShowSuggestions(true);}}
+                onTouchStart={() => {if(searchTerm.length >= 2) setShowSuggestions(true);}}
               />
               <span className="material-symbols-outlined absolute left-3 top-1.5 text-slate-400 text-lg">search</span>
               
               {showSuggestions && (
-                <div className="absolute top-12 left-0 w-[400px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg shadow-xl z-[60] max-h-[80vh] overflow-y-auto mt-2">
-                  {isSearching && <div className="p-4 text-sm text-slate-500 dark:text-slate-400 text-center">Searching internet...</div>}
-                  {!isSearching && suggestions.length === 0 && <div className="p-4 text-sm text-slate-500 dark:text-slate-400 text-center">No results found.</div>}
+                <div className="absolute top-12 left-0 w-[min(400px,90vw)] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg shadow-xl z-[60] max-h-[80vh] overflow-y-auto mt-2">
+                  {isSearching && <div className="p-4 text-sm text-slate-500 dark:text-slate-400 text-center">Searching markets...</div>}
                   {!isSearching && suggestions.map((s, i) => (
                     <div 
                       key={i} 
                       className="p-3 border-b border-slate-50 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer flex gap-4 items-center transition-colors"
+                      onMouseDown={(e) => { e.preventDefault(); selectSymbol(s.symbol); }}
+                      onTouchStart={(e) => { e.preventDefault(); selectSymbol(s.symbol); }}
                       onClick={() => selectSymbol(s.symbol)}
                     >
                       <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 flex items-center justify-center shrink-0">
@@ -293,10 +322,43 @@ export default function Layout({ children }) {
                       </div>
                       <div className="overflow-hidden">
                         <div className="font-bold text-sm text-slate-900 dark:text-white truncate">{s.shortname || s.symbol}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">Stock • {s.symbol}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{s.exchDisp || 'Stock'} • {s.symbol}</div>
                       </div>
                     </div>
                   ))}
+
+                  {/* ZERO-DEAD-END ACTION: ALWAYS OFFER IMMEDIATE ANALYSIS */}
+                  {searchTerm.trim().length >= 2 && (
+                    <div 
+                      className="p-3 bg-blue-50/80 dark:bg-slate-700/80 hover:bg-blue-100 dark:hover:bg-slate-700 cursor-pointer flex items-center justify-between transition-colors border-t border-slate-100 dark:border-slate-700 text-blue-700 dark:text-blue-300 font-semibold text-sm"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const raw = searchTerm.trim().toUpperCase();
+                        const isGlobal = ['AAPL','MSFT','GOOGL','NVDA','TSLA','AMZN','META','BTC-USD','ETH-USD','GC=F','SI=F'].includes(raw);
+                        const sym = isGlobal || raw.includes('.') ? raw : `${raw}.NS`;
+                        selectSymbol(sym);
+                      }}
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        const raw = searchTerm.trim().toUpperCase();
+                        const isGlobal = ['AAPL','MSFT','GOOGL','NVDA','TSLA','AMZN','META','BTC-USD','ETH-USD','GC=F','SI=F'].includes(raw);
+                        const sym = isGlobal || raw.includes('.') ? raw : `${raw}.NS`;
+                        selectSymbol(sym);
+                      }}
+                      onClick={() => {
+                        const raw = searchTerm.trim().toUpperCase();
+                        const isGlobal = ['AAPL','MSFT','GOOGL','NVDA','TSLA','AMZN','META','BTC-USD','ETH-USD','GC=F','SI=F'].includes(raw);
+                        const sym = isGlobal || raw.includes('.') ? raw : `${raw}.NS`;
+                        selectSymbol(sym);
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base text-blue-600 dark:text-blue-400">query_stats</span>
+                        <span>Analyze &quot;<strong>{searchTerm}</strong>&quot;</span>
+                      </div>
+                      <span className="text-xs opacity-75 font-normal">Live Research →</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

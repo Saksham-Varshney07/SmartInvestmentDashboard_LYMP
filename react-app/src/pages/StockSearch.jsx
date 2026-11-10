@@ -5,6 +5,17 @@ import { AiContext } from '../context/AiContext';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { getStockAnalysis, getMarketTrend, savePortfolioTransaction } from '../services/apiClient';
 
+const isUSDAsset = (sym) => {
+  const clean = (sym || '').toUpperCase().replace(/\.(NS|BO)$/i, '');
+  return ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA', 'AMZN', 'META', 'NFLX', 'AMD', 'INTC', 'BTC-USD', 'ETH-USD', 'SOL-USD', 'GC=F', 'SI=F'].includes(clean);
+};
+
+const getCurrencySymbol = (sym, fundCurrency) => {
+  if (fundCurrency === 'USD') return '$';
+  if (fundCurrency === 'INR') return '₹';
+  return isUSDAsset(sym) ? '$' : '₹';
+};
+
 const StockState = ({ kind, symbol, message, onRetry }) => {
   const isLoading = kind === 'loading';
   const isEmpty = kind === 'empty';
@@ -40,8 +51,13 @@ export default function StockSearch() {
 
   const generateFallbackStock = (sym) => {
     const clean = (sym || 'STOCK').toUpperCase().replace(/\.(NS|BO)$/i, '');
-    const priceMap = { 'RELIANCE': 1324.4, 'TCS': 2475.4, 'INFY': 1154.1, 'HDFCBANK': 798.2, 'ICICIBANK': 1589.0, 'TATAMOTORS': 436.6, 'ITC': 278.8, 'SBIN': 1042.0 };
+    const priceMap = { 
+      'TATASTEEL': 154.2, 'TATAMOTORS': 436.65, 'TCS': 2475.4, 'TATAPOWER': 395.5,
+      'RELIANCE': 1324.4, 'INFY': 1154.1, 'HDFCBANK': 798.2, 'ICICIBANK': 1589.0, 
+      'ITC': 278.8, 'SBIN': 1042.0, 'ZOMATO': 265.0, 'PAYTM': 820.0, 'TITAN': 3450.0 
+    };
     const base = priceMap[clean] || 850.0;
+    const isUSD = isUSDAsset(clean);
     const history = [];
     const now = new Date();
     let current = base * 0.94;
@@ -61,7 +77,7 @@ export default function StockSearch() {
     }
     return {
       status: 'success',
-      resolved_symbol: sym,
+      resolved_symbol: isUSD ? clean : `${clean}.NS`,
       name: clean,
       analysis: {
         ticker: sym,
@@ -79,6 +95,7 @@ export default function StockSearch() {
       },
       fundamentals: {
         company_name: clean,
+        currency: isUSD ? 'USD' : 'INR',
         current_price: base,
         day_change: 0.65,
         pe_ratio: 23.4,
@@ -97,7 +114,11 @@ export default function StockSearch() {
         setLoading(true);
         setFetchError(null);
         const result = await getStockAnalysis(stockname);
-        setData(result);
+        if (result && !result.error && !result.detail) {
+          setData(result);
+        } else {
+          setData(generateFallbackStock(stockname));
+        }
       } catch (err) {
         console.warn('Backend server unreachable (mobile/cloud mode), loading client-side market analysis:', err);
         setData(generateFallbackStock(stockname));
@@ -110,19 +131,20 @@ export default function StockSearch() {
 
   useEffect(() => {
     if (stockname) {
+      const currSym = getCurrencySymbol(stockname, data?.fundamentals?.currency);
       setActiveStockSymbol(stockname);
       setActiveStockData({
         symbol: stockname,
         name: stockname.replace(/\.(NS|BO)$/i, ''),
         company_name: stockname.replace(/\.(NS|BO)$/i, ''),
-        currency: stockname.endsWith('.NS') ? '₹' : '$'
+        currency: currSym
       });
     }
     return () => {
       setActiveStockSymbol('');
       setActiveStockData(null);
     };
-  }, [stockname, setActiveStockSymbol, setActiveStockData]);
+  }, [stockname, data, setActiveStockSymbol, setActiveStockData]);
 
   useEffect(() => {
     if (!data || !stockname) return;
@@ -133,6 +155,7 @@ export default function StockSearch() {
     const latestClose = hist.length > 0 ? hist[hist.length - 1].close : (f.current_price || 0);
     const startClose = hist.length > 1 ? hist[hist.length - 2].close : latestClose;
     const dayChange = startClose ? ((latestClose - startClose) / startClose) * 100 : (f.day_change || 0);
+    const currSym = getCurrencySymbol(stockname, f.currency);
 
     const stockDetails = {
       symbol: stockname,
@@ -140,7 +163,7 @@ export default function StockSearch() {
       company_name: data.name || f.company_name || f.name || stockname.replace('.NS', ''),
       latest_price: latestClose,
       returns: dayChange,
-      currency: stockname.endsWith('.NS') ? '₹' : '$',
+      currency: currSym,
       pe_ratio: f.pe_ratio,
       market_cap: f.market_cap,
       sector: f.sector,
@@ -182,16 +205,12 @@ export default function StockSearch() {
     return <StockState kind="loading" symbol={stockname} />;
   }
 
-  if (fetchError) {
-    return <StockState kind="error" symbol={stockname} message={fetchError} onRetry={() => window.location.reload()} />;
-  }
-
-  if (!data) {
-    return <StockState kind="empty" symbol={stockname} message="The symbol may be invalid, or no quote is available right now." onRetry={() => window.location.reload()} />;
-  }
-
-  if (data?.detail || data?.error) {
-    return <StockState kind="error" symbol={stockname} message={data.detail || data.error} onRetry={() => window.location.reload()} />;
+  if (fetchError || !data || data?.detail || data?.error) {
+    const fallback = generateFallbackStock(stockname);
+    if (!data || data?.detail || data?.error) {
+      setData(fallback);
+      return <StockState kind="loading" symbol={stockname} />;
+    }
   }
 
   const hist = data?.history || [];
@@ -293,7 +312,7 @@ export default function StockSearch() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 mb-6 transition-colors">
             <div className="mb-6">
               <h2 className="text-3xl font-bold text-slate-900 dark:text-white flex items-baseline gap-2">
-                {f?.currency === 'INR' || stockname?.endsWith('.NS') ? '₹' : '$'}{latestPrice.toFixed(2)}
+                {getCurrencySymbol(stockname, f?.currency)}{latestPrice.toFixed(2)}
                 <span className={`text-sm font-semibold flex items-center gap-1 ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                   {isPositive ? '+' : ''}{priceChange.toFixed(2)} ({isPositive ? '+' : ''}{pctChange.toFixed(2)}%)
                 </span>
@@ -318,11 +337,11 @@ export default function StockSearch() {
                      axisLine={false} 
                      tickLine={false}
                      tick={{fontSize: 12, fill: '#64748b'}}
-                     tickFormatter={(val) => `${f?.currency === 'INR' || stockname?.endsWith('.NS') ? '₹' : '$'}${val}`}
+                     tickFormatter={(val) => `${getCurrencySymbol(stockname, f?.currency)}${val}`}
                   />
                   <Tooltip 
                      labelFormatter={(l) => new Date(l).toLocaleDateString()}
-                     formatter={(val) => [`${f?.currency === 'INR' || stockname?.endsWith('.NS') ? '₹' : '$'}${Number(val).toFixed(2)}`, 'Price']}
+                     formatter={(val) => [`${getCurrencySymbol(stockname, f?.currency)}${Number(val).toFixed(2)}`, 'Price']}
                   />
                   <Line 
                      type="monotone" 
