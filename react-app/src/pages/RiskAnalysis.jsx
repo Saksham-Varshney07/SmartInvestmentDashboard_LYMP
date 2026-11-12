@@ -125,8 +125,32 @@ export default function RiskAnalysis() {
   
   const [loading, setLoading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(() => {
-    const saved = sessionStorage.getItem('risk_analysisResult');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = sessionStorage.getItem('risk_analysisResult');
+      if (!saved) return null;
+      const raw = JSON.parse(saved);
+      if (!raw) return null;
+      const safe = raw.portfolios?.safe || raw.the_defender;
+      const balanced = raw.portfolios?.balanced || raw.the_balanced;
+      const aggressive = raw.portfolios?.aggressive || raw.the_aggressor;
+      const warnings = raw.ai_warnings || raw.warnings || [];
+      return {
+        ...raw,
+        valid_count: raw.valid_count || 5,
+        ai_warnings: warnings,
+        warnings: warnings,
+        the_defender: safe,
+        the_balanced: balanced,
+        the_aggressor: aggressive,
+        portfolios: {
+          safe,
+          balanced,
+          aggressive
+        }
+      };
+    } catch (e) {
+      return null;
+    }
   });
   const [confirmApply, setConfirmApply] = useState(null);
 
@@ -596,9 +620,27 @@ CRITICAL RULES:
         duration,
         risk_profile: riskProfile
       };
-      const analysis = await calculatePortfolioRisk(payload);
-      if (analysis) {
-        setAnalysisResult(analysis);
+      const raw = await calculatePortfolioRisk(payload);
+      if (raw) {
+        const safe = raw.portfolios?.safe || raw.the_defender;
+        const balanced = raw.portfolios?.balanced || raw.the_balanced;
+        const aggressive = raw.portfolios?.aggressive || raw.the_aggressor;
+        const warnings = raw.ai_warnings || raw.warnings || [];
+        const normalized = {
+          ...raw,
+          valid_count: raw.valid_count || stocks.length,
+          ai_warnings: warnings,
+          warnings: warnings,
+          the_defender: safe,
+          the_balanced: balanced,
+          the_aggressor: aggressive,
+          portfolios: {
+            safe,
+            balanced,
+            aggressive
+          }
+        };
+        setAnalysisResult(normalized);
         setStep(3);
       } else {
         throw new Error("Failed to analyze portfolio.");
@@ -773,9 +815,9 @@ CRITICAL RULES:
     setIsCalculatingBreakdown(true);
     const effectiveApiKey = aiApiKey?.trim() || getActiveApiKey() || '';
 
-    const safeAllocs = analysisResult?.portfolios?.safe?.allocations || [];
-    const balancedAllocs = analysisResult?.portfolios?.balanced?.allocations || [];
-    const aggressiveAllocs = analysisResult?.portfolios?.aggressive?.allocations || [];
+    const safeAllocs = analysisResult?.portfolios?.safe?.allocations || analysisResult?.the_defender?.allocations || [];
+    const balancedAllocs = analysisResult?.portfolios?.balanced?.allocations || analysisResult?.the_balanced?.allocations || [];
+    const aggressiveAllocs = analysisResult?.portfolios?.aggressive?.allocations || analysisResult?.the_aggressor?.allocations || [];
 
     const activePromptText = allocationPrompt?.trim() || 
       `The user has a budget of ₹${budget.toLocaleString('en-IN')}, and has selected ${stocks.join(', ')}. Suggest an optimal portfolio allocation breakdown tailored for his risk profile (${riskProfile}), and provide convincing, realistic wealth-advisor reasons explaining why each stock is allocated that amount.`;
@@ -897,6 +939,9 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
   };
 
   const PortfolioCard = ({ portfolio, profileKey = 'safe' }) => {
+    if (!portfolio || !portfolio.allocations || !Array.isArray(portfolio.allocations)) {
+      return null;
+    }
     const chartOptions = {
       chart: {
         type: 'donut',
@@ -1193,7 +1238,16 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
           </div>
         )}
 
-        {step === 3 && analysisResult && (
+        {step === 3 && analysisResult && (() => {
+          const warningsList = analysisResult.ai_warnings || analysisResult.warnings || [];
+          const safePortfolio = analysisResult.portfolios?.safe || analysisResult.the_defender;
+          const balancedPortfolio = analysisResult.portfolios?.balanced || analysisResult.the_balanced;
+          const aggressivePortfolio = analysisResult.portfolios?.aggressive || analysisResult.the_aggressor;
+          const matrix = Array.isArray(analysisResult.correlation_matrix) ? analysisResult.correlation_matrix : [];
+          const sectors = Array.isArray(analysisResult.sector_breakdown) ? analysisResult.sector_breakdown : [];
+          const simData = analysisResult.simulation_data;
+
+          return (
           <div className="animate-fade-in">
              <button onClick={() => setStep(2)} className="text-sm text-slate-500 flex items-center mb-6 hover:text-slate-800 transition-colors"><span className="material-symbols-outlined text-[16px] mr-1">arrow_back</span> Edit Portfolio inputs</button>
              
@@ -1202,8 +1256,8 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
                 {/* Left Side Info */}
                 <div className="md:w-1/3 flex flex-col justify-center border-r border-slate-100 dark:border-slate-800 pr-6">
                    <h2 className="text-2xl font-bold mb-2 flex items-center gap-2 text-slate-900 dark:text-white">
-                     <span className={`material-symbols-outlined text-3xl ${analysisResult.ai_warnings.length > 0 && !analysisResult.ai_warnings[0].startsWith('Great job!') ? 'text-amber-500' : 'text-emerald-500'}`}>
-                       {analysisResult.ai_warnings.length > 0 && !analysisResult.ai_warnings[0].startsWith('Great job!') ? 'warning' : 'check_circle'}
+                     <span className={`material-symbols-outlined text-3xl ${warningsList.length > 0 && !warningsList[0]?.startsWith('Great job!') ? 'text-amber-500' : 'text-emerald-500'}`}>
+                       {warningsList.length > 0 && !warningsList[0]?.startsWith('Great job!') ? 'warning' : 'check_circle'}
                      </span>
                      Diagnostic Report
                    </h2>
@@ -1211,22 +1265,22 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
                      Analyzed {analysisResult.valid_count || stocks.length} assets against <strong>{riskProfile}</strong>.
                    </p>
                    
-                   {analysisResult.ai_warnings.length > 1 && (
+                   {warningsList.length > 1 && (
                      <div className="flex gap-2 items-center mt-auto">
                        <button 
                          onClick={() => {
                            setSlideDirection(-1);
-                           setActiveWarningIdx(prev => prev === 0 ? analysisResult.ai_warnings.length - 1 : prev - 1);
+                           setActiveWarningIdx(prev => prev === 0 ? warningsList.length - 1 : prev - 1);
                          }}
                          className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
                        >
                          <span className="material-symbols-outlined text-sm">chevron_left</span>
                        </button>
-                       <span className="text-xs font-bold text-slate-400">{activeWarningIdx + 1} / {analysisResult.ai_warnings.length}</span>
+                       <span className="text-xs font-bold text-slate-400">{activeWarningIdx + 1} / {warningsList.length}</span>
                        <button 
                          onClick={() => {
                            setSlideDirection(1);
-                           setActiveWarningIdx(prev => (prev + 1) % analysisResult.ai_warnings.length);
+                           setActiveWarningIdx(prev => (prev + 1) % warningsList.length);
                          }}
                          className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
                        >
@@ -1238,7 +1292,7 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
 
                 {/* Right Side Carousel */}
                 <div className="md:w-2/3 relative flex items-center overflow-hidden min-h-[140px]">
-                   {analysisResult.ai_warnings.length > 0 && (
+                   {warningsList.length > 0 && (
                      <AnimatePresence mode="wait" custom={slideDirection}>
                        <motion.div 
                           key={activeWarningIdx}
@@ -1247,18 +1301,18 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
                           animate={{ x: 0, opacity: 1 }}
                           exit={{ x: slideDirection * -60, opacity: 0 }}
                           transition={{ duration: 0.25, ease: 'easeOut' }}
-                          className={`w-full absolute p-6 rounded-xl border ${analysisResult.ai_warnings[activeWarningIdx].startsWith('Great job!') ? 'bg-gradient-to-r from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-900 border-emerald-200 dark:border-emerald-500/30' : 'bg-gradient-to-r from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-900 border-amber-200 dark:border-amber-500/30'}`}
+                          className={`w-full absolute p-6 rounded-xl border ${warningsList[activeWarningIdx]?.startsWith('Great job!') ? 'bg-gradient-to-r from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-900 border-emerald-200 dark:border-emerald-500/30' : 'bg-gradient-to-r from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-900 border-amber-200 dark:border-amber-500/30'}`}
                         >
                           <div className="flex items-start gap-4">
-                            <span className={`material-symbols-outlined text-4xl shrink-0 ${analysisResult.ai_warnings[activeWarningIdx].startsWith('Great job!') ? 'text-emerald-500 dark:text-emerald-400' : 'text-amber-500 dark:text-amber-400'}`}>
-                               {analysisResult.ai_warnings[activeWarningIdx].startsWith('Great job!') ? 'verified_user' : 'warning'}
+                            <span className={`material-symbols-outlined text-4xl shrink-0 ${warningsList[activeWarningIdx]?.startsWith('Great job!') ? 'text-emerald-500 dark:text-emerald-400' : 'text-amber-500 dark:text-amber-400'}`}>
+                               {warningsList[activeWarningIdx]?.startsWith('Great job!') ? 'verified_user' : 'warning'}
                             </span>
                             <div>
-                              <h4 className={`font-bold text-sm mb-1 uppercase tracking-wider ${analysisResult.ai_warnings[activeWarningIdx].startsWith('Great job!') ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
-                                {analysisResult.ai_warnings[activeWarningIdx].startsWith('Great job!') ? 'All Clear' : 'Attention Needed'}
+                              <h4 className={`font-bold text-sm mb-1 uppercase tracking-wider ${warningsList[activeWarningIdx]?.startsWith('Great job!') ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                                {warningsList[activeWarningIdx]?.startsWith('Great job!') ? 'All Clear' : 'Attention Needed'}
                               </h4>
                               <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed text-sm md:text-base">
-                                {analysisResult.ai_warnings[activeWarningIdx]}
+                                {warningsList[activeWarningIdx]}
                               </p>
                             </div>
                           </div>
@@ -1269,7 +1323,7 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
              </div>
 
              {/* Correlation Heatmap */}
-             {analysisResult.correlation_matrix && (
+             {matrix.length > 0 && (
                <div className="mb-12 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-8">
                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Asset Correlation Matrix</h3>
                  <div className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed space-y-1">
@@ -1279,7 +1333,7 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
                  </div>
                  <div className="h-[300px]">
                    <ReactApexChart 
-                     key={`heatmap-${analysisResult.correlation_matrix.map(r => r.name).join('-')}`}
+                     key={`heatmap-${matrix.map(r => r.name).join('-')}`}
                      options={{
                        chart: { type: 'heatmap', toolbar: { show: false } },
                        dataLabels: { enabled: true },
@@ -1331,10 +1385,10 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
                        },
                        xaxis: { 
                           type: 'category',
-                          categories: analysisResult.correlation_matrix.map(r => r.name)
+                          categories: matrix.map(r => r.name)
                         }
                      }}
-                     series={analysisResult.correlation_matrix}
+                     series={matrix}
                      type="heatmap"
                      height="100%"
                    />
@@ -1343,11 +1397,11 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
              )}
 
              {/* Sector Exposure Breakdown */}
-             {analysisResult.sector_breakdown && (
+             {sectors.length > 0 && (
                <div className="mb-12 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-8">
                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Sector Exposure Breakdown</h3>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-                   {analysisResult.sector_breakdown.map((sector, i) => (
+                   {sectors.map((sector, i) => (
                      <div key={i}>
                        <div className="flex justify-between items-center mb-2">
                          <span className="font-bold text-slate-700 dark:text-slate-300">{sector.name}</span>
@@ -1446,9 +1500,9 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
                 <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-500 ${
                   !isAllocationCalculated ? 'filter blur-md pointer-events-none select-none opacity-30 scale-[0.99]' : ''
                 }`}>
-                   <PortfolioCard portfolio={analysisResult.portfolios.safe} profileKey="safe" />
-                   <PortfolioCard portfolio={analysisResult.portfolios.balanced} profileKey="balanced" />
-                   <PortfolioCard portfolio={analysisResult.portfolios.aggressive} profileKey="aggressive" />
+                   <PortfolioCard portfolio={safePortfolio} profileKey="safe" />
+                   <PortfolioCard portfolio={balancedPortfolio} profileKey="balanced" />
+                   <PortfolioCard portfolio={aggressivePortfolio} profileKey="aggressive" />
                 </div>
 
                 {/* Floating Centered Action Card when Breakdown Not Yet Calculated */}
@@ -1529,7 +1583,7 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
               </div>
 
              {/* Historical Drawdown Simulation */}
-             {analysisResult.simulation_data && (
+             {simData && Array.isArray(simData.categories) && (
                <div className="mb-12 bg-white dark:bg-slate-900 rounded-2xl shadow-[0_8px_24px_rgba(25,28,29,0.04)] border border-slate-100 dark:border-slate-800 p-8">
                  <div className="flex justify-between items-center mb-6">
                    <div>
@@ -1551,7 +1605,7 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
                          gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.0, stops: [0, 90, 100] }
                        },
                        xaxis: {
-                         categories: analysisResult.simulation_data.categories,
+                         categories: simData.categories,
                          labels: { style: { colors: '#94a3b8' } }
                        },
                        yaxis: {
@@ -1565,8 +1619,8 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
                        legend: { position: 'top', horizontalAlign: 'right' }
                      }}
                      series={[
-                       { name: 'Your Stock Picks', data: analysisResult.simulation_data.user_portfolio },
-                       { name: 'AI Balanced Portfolio', data: analysisResult.simulation_data.ai_balanced }
+                       { name: 'Your Stock Picks', data: simData.user_portfolio || [] },
+                       { name: 'AI Balanced Portfolio', data: simData.ai_balanced || [] }
                      ]}
                      type="area"
                      height="100%"
@@ -1575,7 +1629,8 @@ Return ONLY a JSON object with this exact structure (no markdown fences, no othe
                </div>
              )}
           </div>
-        )}
+          );
+        })()}
 
       </main>
 

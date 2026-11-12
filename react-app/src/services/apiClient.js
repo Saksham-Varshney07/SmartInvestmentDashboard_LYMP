@@ -650,13 +650,34 @@ export async function calculatePortfolioRisk(payload) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      }, 4000);
+      }, 5000);
       if (res.ok) {
         const data = await res.json();
-        if (data.analysis) return data.analysis;
+        const a = data.analysis || data;
+        if (a && (a.correlation_matrix || a.portfolios || a.the_defender)) {
+          const safe = a.portfolios?.safe || a.the_defender;
+          const balanced = a.portfolios?.balanced || a.the_balanced;
+          const aggressive = a.portfolios?.aggressive || a.the_aggressor;
+          const warnings = a.ai_warnings || a.warnings || [];
+          return {
+            ...a,
+            valid_count: a.valid_count || payload.stocks?.length || 5,
+            has_high_correlation: a.has_high_correlation ?? false,
+            ai_warnings: warnings,
+            warnings: warnings,
+            the_defender: safe,
+            the_balanced: balanced,
+            the_aggressor: aggressive,
+            portfolios: {
+              safe,
+              balanced,
+              aggressive
+            }
+          };
+        }
       }
     } catch (e) {
-      console.warn('Backend portfolio-risk unreachable, executing client-side risk engine.');
+      console.warn('Backend portfolio-risk unreachable, executing client-side risk engine.', e);
     }
   }
 
@@ -732,17 +753,26 @@ export async function calculatePortfolioRisk(payload) {
 
   const simulation_data = {
     categories: ['Month 1', 'Month 3', 'Month 6', 'Month 9', 'Month 12'],
-    user_portfolio: [100, 103, 107, 110, 114],
-    ai_balanced: [100, 105, 111, 115, 122]
+    user_portfolio: [100000, 103000, 107000, 110000, 114000],
+    ai_balanced: [100000, 105000, 111000, 115000, 122000]
   };
 
   return {
+    valid_count: num,
+    has_high_correlation: false,
+    ai_warnings: warnings,
+    warnings: warnings,
+    user_profile_matched: payload.risk_profile || 'Balanced',
     correlation_matrix,
-    warnings,
     sector_breakdown,
     the_defender,
     the_balanced,
     the_aggressor,
+    portfolios: {
+      safe: the_defender,
+      balanced: the_balanced,
+      aggressive: the_aggressor
+    },
     simulation_data
   };
 }

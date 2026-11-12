@@ -13,6 +13,7 @@ import { AiProvider } from './context/AiContext';
 import Layout from './components/Layout';
 import Onboarding from './components/Onboarding';
 import ScrollToTop from './components/ScrollToTop';
+import ErrorBoundary from './components/ErrorBoundary';
 
 import SectorComparison from './pages/SectorComparison';
 
@@ -59,7 +60,9 @@ function App() {
           <ScrollToTop />
           <Onboarding />
           <Layout>
-            <AnimatedRoutes />
+            <ErrorBoundary>
+              <AnimatedRoutes />
+            </ErrorBoundary>
           </Layout>
         </Router>
       </AiProvider>
