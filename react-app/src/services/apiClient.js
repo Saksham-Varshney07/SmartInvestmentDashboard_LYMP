@@ -11,9 +11,9 @@ import { calculateClientXirr } from '../utils/finance';
 
 const IS_HTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:';
 const CONFIGURED_API = (import.meta.env.VITE_API_BASE_URL || '').trim();
-// Remote backend is only accessible if explicitly configured with HTTPS, or running locally on plain HTTP
-export const HAS_ACCESSIBLE_BACKEND = Boolean(CONFIGURED_API && (!IS_HTTPS || CONFIGURED_API.startsWith('https://'))) || (!IS_HTTPS && !CONFIGURED_API);
-export const API_BASE = CONFIGURED_API || (IS_HTTPS ? '' : 'http://127.0.0.1:8000');
+// Remote backend is always accessible: via Vercel Serverless Functions on cloud, or Vite proxy on localhost
+export const HAS_ACCESSIBLE_BACKEND = true;
+export const API_BASE = CONFIGURED_API || '';
 
 export async function fetchWithTimeout(url, options = {}, timeoutMs = 2500) {
   const controller = new AbortController();
@@ -33,7 +33,7 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = 2500) {
 // -------------------------------------------------------------
 export const STOCK_DICTIONARY = [
   // TATA GROUP
-  { symbol: 'TATASTEEL.NS', name: 'Tata Steel Ltd', sector: 'Metals & Mining', price: 154.2, change: 1.45, pe: 38.4, high_52w: 184.6, low_52w: 114.2, risk: 'Moderate' },
+  { symbol: 'TATASTEEL.NS', name: 'Tata Steel Ltd', sector: 'Metals & Mining', price: 188.0, change: 0.65, pe: 38.4, high_52w: 224.4, low_52w: 160.06, risk: 'Moderate' },
   { symbol: 'TATAMOTORS.NS', name: 'Tata Motors Passenger', sector: 'Automobile', price: 436.65, change: 2.45, pe: 25.6, high_52w: 509.0, low_52w: 306.3, risk: 'Low' },
   { symbol: 'TCS.NS', name: 'Tata Consultancy Services', sector: 'Technology', price: 2475.4, change: 1.25, pe: 24.3, high_52w: 3350.0, low_52w: 1976.8, risk: 'Low' },
   { symbol: 'TATAPOWER.NS', name: 'Tata Power Co', sector: 'Energy', price: 395.5, change: 0.95, pe: 32.1, high_52w: 494.8, low_52w: 240.2, risk: 'Moderate' },
@@ -533,11 +533,11 @@ export async function getStockAnalysis(symbol) {
     s.name.toUpperCase().includes(clean)
   ) || {
     name: clean.length <= 5 ? `${clean} Ltd` : clean,
-    price: clean.includes('STEEL') ? 154.2 : (clean.includes('POWER') ? 395.5 : 850.0),
+    price: clean.includes('STEEL') ? 188.0 : (clean.includes('POWER') ? 395.5 : 850.0),
     change: 1.15,
     pe: 24.0,
-    high_52w: 1200.0,
-    low_52w: 680.0,
+    high_52w: clean.includes('STEEL') ? 224.4 : 1200.0,
+    low_52w: clean.includes('STEEL') ? 160.06 : 680.0,
     risk: 'Moderate',
     sector: clean.includes('STEEL') ? 'Metals & Mining' : (clean.includes('BANK') ? 'Financial Services' : 'Equities')
   };
