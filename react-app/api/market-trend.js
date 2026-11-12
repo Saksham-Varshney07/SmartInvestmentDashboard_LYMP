@@ -17,6 +17,47 @@ const US_GLOBAL_SYMBOLS = [
   'BTC-USD', 'ETH-USD', 'SOL-USD', 'GC=F', 'SI=F'
 ];
 
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+let cachedSession = null;
+let sessionExpiresAt = 0;
+
+function getYahooSession() {
+  const now = Date.now();
+  if (cachedSession && now < sessionExpiresAt) {
+    return Promise.resolve(cachedSession);
+  }
+
+  return new Promise((resolve) => {
+    const req = https.get('https://fc.yahoo.com', { headers: { 'User-Agent': USER_AGENT } }, (res) => {
+      const setCookie = res.headers['set-cookie'];
+      let cookie = '';
+      if (setCookie && setCookie.length > 0) {
+        cookie = setCookie.map(c => c.split(';')[0]).join('; ');
+      }
+      if (!cookie) return resolve(null);
+
+      https.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+        headers: { 'User-Agent': USER_AGENT, 'Cookie': cookie }
+      }, (crumbRes) => {
+        let crumb = '';
+        crumbRes.on('data', d => crumb += d);
+        crumbRes.on('end', () => {
+          if (crumb && crumbRes.statusCode === 200) {
+            cachedSession = { cookie, crumb: crumb.trim() };
+            sessionExpiresAt = Date.now() + (1000 * 60 * 30);
+            resolve(cachedSession);
+          } else {
+            resolve(null);
+          }
+        });
+      }).on('error', () => resolve(null));
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(3500, () => { req.destroy(); resolve(null); });
+  });
+}
+
 function resolveSymbol(inputSym) {
   if (!inputSym) return 'RELIANCE.NS';
   const clean = inputSym.trim().toLowerCase();
@@ -62,16 +103,18 @@ export default async function handler(req, res) {
     interval = '1d';
   }
 
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
-
   try {
+    const session = await getYahooSession();
+    let url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+    const headers = { 'User-Agent': USER_AGENT, 'Accept': 'application/json' };
+
+    if (session && session.crumb) {
+      url += `&crumb=${encodeURIComponent(session.crumb)}`;
+      headers['Cookie'] = session.cookie;
+    }
+
     const data = await new Promise((resolve, reject) => {
-      const options = {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-      };
-      https.get(url, options, response => {
+      const request = https.get(url, { headers }, response => {
         let body = '';
         response.on('data', chunk => body += chunk);
         response.on('end', () => {
@@ -81,7 +124,9 @@ export default async function handler(req, res) {
             reject(e);
           }
         });
-      }).on('error', reject);
+      });
+      request.on('error', reject);
+      request.setTimeout(4500, () => { request.destroy(); reject(new Error('Timeout')); });
     });
 
     const result = data.chart?.result?.[0];

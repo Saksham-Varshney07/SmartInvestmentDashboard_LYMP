@@ -28,6 +28,47 @@ const US_GLOBAL_SYMBOLS = [
   'BTC-USD', 'ETH-USD', 'SOL-USD', 'GC=F', 'SI=F'
 ];
 
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+let cachedSession = null;
+let sessionExpiresAt = 0;
+
+function getYahooSession() {
+  const now = Date.now();
+  if (cachedSession && now < sessionExpiresAt) {
+    return Promise.resolve(cachedSession);
+  }
+
+  return new Promise((resolve) => {
+    const req = https.get('https://fc.yahoo.com', { headers: { 'User-Agent': USER_AGENT } }, (res) => {
+      const setCookie = res.headers['set-cookie'];
+      let cookie = '';
+      if (setCookie && setCookie.length > 0) {
+        cookie = setCookie.map(c => c.split(';')[0]).join('; ');
+      }
+      if (!cookie) return resolve(null);
+
+      https.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+        headers: { 'User-Agent': USER_AGENT, 'Cookie': cookie }
+      }, (crumbRes) => {
+        let crumb = '';
+        crumbRes.on('data', d => crumb += d);
+        crumbRes.on('end', () => {
+          if (crumb && crumbRes.statusCode === 200) {
+            cachedSession = { cookie, crumb: crumb.trim() };
+            sessionExpiresAt = Date.now() + (1000 * 60 * 30); // 30 min cache
+            resolve(cachedSession);
+          } else {
+            resolve(null);
+          }
+        });
+      }).on('error', () => resolve(null));
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(3500, () => { req.destroy(); resolve(null); });
+  });
+}
+
 function resolveSymbol(inputSym) {
   if (!inputSym) return 'RELIANCE.NS';
   const clean = inputSym.trim().toLowerCase();
@@ -40,20 +81,20 @@ function resolveSymbol(inputSym) {
   if (upper.includes('.') || upper.includes('-') || upper.includes('=')) return upper;
   if (US_GLOBAL_SYMBOLS.includes(upper)) return upper;
 
-  // Default Indian equities to National Stock Exchange (.NS)
   return upper + '.NS';
 }
 
-function fetchYahooChart(symbol, range = '1y', interval = '1d') {
+function fetchYahooChart(symbol, range = '1y', interval = '1d', session = null) {
   return new Promise((resolve, reject) => {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
-    const options = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json'
-      }
-    };
-    https.get(url, options, res => {
+    let url = `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+    const headers = { 'User-Agent': USER_AGENT, 'Accept': 'application/json' };
+
+    if (session && session.crumb) {
+      url += `&crumb=${encodeURIComponent(session.crumb)}`;
+      headers['Cookie'] = session.cookie;
+    }
+
+    const req = https.get(url, { headers }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -70,12 +111,13 @@ function fetchYahooChart(symbol, range = '1y', interval = '1d') {
           reject(e);
         }
       });
-    }).on('error', reject);
+    });
+    req.on('error', reject);
+    req.setTimeout(4500, () => { req.destroy(); reject(new Error('Yahoo Finance timeout')); });
   });
 }
 
 export default async function handler(req, res) {
-  // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -95,13 +137,15 @@ export default async function handler(req, res) {
   const resolved = resolveSymbol(rawSym || 'TATASTEEL.NS');
 
   try {
+    const session = await getYahooSession();
     let result = null;
+
     try {
-      result = await fetchYahooChart(resolved, '1y', '1d');
+      result = await fetchYahooChart(resolved, '1y', '1d', session);
     } catch (primaryErr) {
       if (resolved.endsWith('.NS')) {
         const bseSym = resolved.replace('.NS', '.BO');
-        result = await fetchYahooChart(bseSym, '1y', '1d');
+        result = await fetchYahooChart(bseSym, '1y', '1d', session);
       } else {
         throw primaryErr;
       }
@@ -131,7 +175,7 @@ export default async function handler(req, res) {
     const prevClose = meta.previousClose || meta.chartPreviousClose || (history.length > 1 ? history[history.length - 2].close : latestPrice);
     const dayChange = prevClose ? Number((((latestPrice - prevClose) / prevClose) * 100).toFixed(2)) : 0;
 
-    // Calculate Real Annualized Volatility from Daily Returns
+    // Calculate Real Annualized Volatility from Daily Log Returns
     let volatility = 0.18;
     let yearlyReturn = 0;
     if (history.length > 10) {
@@ -190,7 +234,6 @@ export default async function handler(req, res) {
       history
     };
 
-    // Cache responses on Vercel CDN for 60 seconds
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=120');
     return res.status(200).json(analysisPayload);
 
