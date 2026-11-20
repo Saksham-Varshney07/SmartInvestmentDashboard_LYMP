@@ -296,7 +296,9 @@ export default function StockSearch() {
              <div className="h-6 w-px bg-slate-300 dark:bg-slate-700"></div>
              <div>
                <h1 className="text-3xl font-bold text-slate-900 dark:text-white leading-none">{f.shortName || stockname.toUpperCase()}</h1>
-               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">{f.exchange} • {f.quoteType} • {f.currency}</span>
+               <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">
+                 {[f.exchange, f.quoteType, f.currency || 'INR'].filter(Boolean).join(' • ') || 'EQUITY • INR'}
+               </span>
              </div>
           </div>
           <div className="flex gap-3">

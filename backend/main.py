@@ -33,6 +33,7 @@ class TransactionEditRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     username: str
+    password: Optional[str] = None
     full_name: Optional[str] = None
     risk_profile: Optional[str] = None
     investment_horizon: Optional[str] = None

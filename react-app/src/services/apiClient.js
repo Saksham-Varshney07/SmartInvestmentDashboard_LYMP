@@ -122,6 +122,14 @@ const COMMON_ALIASES = {
   'tcs': 'TCS.NS',
   'trent': 'TRENT.NS',
   'titan': 'TITAN.NS',
+  'tata': 'TATAMOTORS.NS',
+  'tatasteel': 'TATASTEEL.NS',
+  'tata steel': 'TATASTEEL.NS',
+  'tatamotors': 'TATAMOTORS.NS',
+  'tata motors': 'TATAMOTORS.NS',
+  'tatapower': 'TATAPOWER.NS',
+  'tata power': 'TATAPOWER.NS',
+  'tcs': 'TCS.NS',
   'zomato': 'ZOMATO.NS',
   'paytm': 'PAYTM.NS',
   'one97': 'PAYTM.NS',
@@ -808,43 +816,150 @@ export async function applyBlueprint(userId, allocations) {
 }
 
 // -------------------------------------------------------------
-// 6. RESILIENT AUTH / LOGIN SERVICE
+// 6. RESILIENT AUTH & STRICT LOGIN SERVICE
 // -------------------------------------------------------------
-export async function loginUser(loginForm, isSignup = false) {
-  const username = loginForm.username?.trim() || 'saksham';
-  const fallbackUser = {
-    status: 'success',
+const DEFAULT_ACCOUNTS = [
+  {
     user_id: 1,
     portfolio_id: 1,
-    username: username,
-    full_name: (isSignup ? loginForm.full_name?.trim() : '') || username,
-    risk_profile: (isSignup ? loginForm.risk_profile : '') || 'Balanced',
-    investment_horizon: (isSignup ? loginForm.investment_horizon : '') || 'Medium-term'
-  };
+    username: 'saksham',
+    password: 'saksham123',
+    full_name: 'Saksham Varshney',
+    risk_profile: 'Balanced',
+    investment_horizon: 'Medium-term'
+  }
+];
 
-  if (HAS_ACCESSIBLE_BACKEND) {
+export async function loginUser(loginForm, isSignup = false) {
+  const username = (loginForm.username || '').trim();
+  const password = (loginForm.password || '').trim();
+
+  if (!username) {
+    throw new Error('Please enter a username.');
+  }
+  if (!password) {
+    throw new Error('Please enter your password.');
+  }
+
+  // Ensure registered_accounts in localStorage is initialized
+  let localAccounts = [];
+  try {
+    const raw = localStorage.getItem('registered_accounts');
+    if (raw) {
+      localAccounts = JSON.parse(raw);
+    } else {
+      localAccounts = [...DEFAULT_ACCOUNTS];
+      localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
+    }
+  } catch (e) {
+    localAccounts = [...DEFAULT_ACCOUNTS];
+  }
+
+  const normalizedUsername = username.toLowerCase();
+
+  // Handle Sign Up
+  if (isSignup) {
+    if (password.length < 4) {
+      throw new Error('Password must be at least 4 characters long.');
+    }
+
+    // Check if account already exists locally
+    if (localAccounts.some(acc => acc.username.toLowerCase() === normalizedUsername)) {
+      throw new Error('Username is already taken. Please choose another username or Log In.');
+    }
+
+    // Attempt backend registration if available
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: username,
-          full_name: isSignup ? loginForm.full_name?.trim() : '',
-          risk_profile: isSignup ? loginForm.risk_profile : '',
-          investment_horizon: isSignup ? loginForm.investment_horizon : '',
-          is_signup: isSignup
+        body: JSON.stringify({
+          username,
+          password,
+          full_name: loginForm.full_name?.trim() || username,
+          risk_profile: loginForm.risk_profile || 'Balanced',
+          investment_horizon: loginForm.investment_horizon || 'Medium-term',
+          is_signup: true
         })
-      }, 1500);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.status === 'success') {
-          return data;
-        }
+      }, 2000);
+
+      const data = await res.json();
+      if (!res.ok || data.status === 'error') {
+        throw new Error(data.message || 'Registration failed.');
       }
-    } catch (e) {
-      console.warn('Backend login unreachable (cloud / mobile mode). Continuing with local session.');
+      if (data && data.status === 'success') {
+        const newEntry = { ...data, password };
+        localAccounts.push(newEntry);
+        localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
+        return data;
+      }
+    } catch (apiErr) {
+      if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Network') && !apiErr.message.includes('timeout') && !apiErr.message.includes('Failed to fetch')) {
+        throw apiErr;
+      }
+    }
+
+    // Create local account
+    const newId = Date.now();
+    const newUser = {
+      status: 'success',
+      user_id: newId,
+      portfolio_id: newId + 1,
+      username: username,
+      password: password,
+      full_name: loginForm.full_name?.trim() || username,
+      risk_profile: loginForm.risk_profile || 'Balanced',
+      investment_horizon: loginForm.investment_horizon || 'Medium-term'
+    };
+
+    localAccounts.push(newUser);
+    localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
+    return newUser;
+  }
+
+  // Handle Log In
+  // 1. First try calling /api/login endpoint
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        password,
+        is_signup: false
+      })
+    }, 2000);
+
+    const data = await res.json();
+    if (!res.ok || data.status === 'error') {
+      throw new Error(data.message || 'Authentication failed.');
+    }
+    if (data && data.status === 'success') {
+      return data;
+    }
+  } catch (apiErr) {
+    if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Network') && !apiErr.message.includes('timeout') && !apiErr.message.includes('Failed to fetch')) {
+      throw apiErr;
     }
   }
 
-  return fallbackUser;
+  // 2. Strict local validation against registered_accounts
+  const matched = localAccounts.find(acc => acc.username.toLowerCase() === normalizedUsername);
+  if (!matched) {
+    throw new Error("Account not found. Please click 'Sign up' below to create an account.");
+  }
+
+  if (matched.password && matched.password !== password) {
+    throw new Error('Incorrect password. Please verify and try again.');
+  }
+
+  return {
+    status: 'success',
+    user_id: matched.user_id || 1,
+    portfolio_id: matched.portfolio_id || 1,
+    username: matched.username,
+    full_name: matched.full_name || matched.username,
+    risk_profile: matched.risk_profile || 'Balanced',
+    investment_horizon: matched.investment_horizon || 'Medium-term'
+  };
 }

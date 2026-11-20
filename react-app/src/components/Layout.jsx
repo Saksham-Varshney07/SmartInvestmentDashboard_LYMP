@@ -8,8 +8,10 @@ import { searchAutocomplete, loginUser } from '../services/apiClient';
 export default function Layout({ children }) {
   const { currentUser, setCurrentUser } = useContext(AuthContext);
   const { aiPageData, activeStockData, activeStockSymbol } = useContext(AiContext);
-  const [loginForm, setLoginForm] = useState({ username: '', full_name: '', risk_profile: 'Balanced', investment_horizon: 'Medium-term' });
+  const [loginForm, setLoginForm] = useState({ username: '', password: '', full_name: '', risk_profile: 'Balanced', investment_horizon: 'Medium-term' });
   const [isSignup, setIsSignup] = useState(false);
+  const [authError, setAuthError] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   
   const [showAiModal, setShowAiModal] = useState(false);
   
@@ -54,6 +56,7 @@ export default function Layout({ children }) {
 
   const handleQuickDemo = (e) => {
     if (e && e.preventDefault) e.preventDefault();
+    setAuthError(null);
     const demoUser = {
       status: 'success',
       user_id: 1,
@@ -73,22 +76,26 @@ export default function Layout({ children }) {
     }
     if (isSubmitting) return;
 
-    const username = (loginForm.username || '').trim() || 'saksham';
+    setAuthError(null);
+    const username = (loginForm.username || '').trim();
+    const password = (loginForm.password || '').trim();
+
+    if (!username) {
+      setAuthError('Please enter a username.');
+      return;
+    }
+    if (!password) {
+      setAuthError('Please enter your password.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const user = await loginUser({ ...loginForm, username }, isSignup);
+      const user = await loginUser({ ...loginForm, username, password }, isSignup);
       setCurrentUser(user);
-    } catch (e) {
-      console.error('Login error:', e);
-      setCurrentUser({
-        status: 'success',
-        user_id: 1,
-        portfolio_id: 1,
-        username: username,
-        full_name: (isSignup ? loginForm.full_name?.trim() : '') || username,
-        risk_profile: (isSignup ? loginForm.risk_profile : '') || 'Balanced',
-        investment_horizon: (isSignup ? loginForm.investment_horizon : '') || 'Medium-term'
-      });
+    } catch (err) {
+      console.error('Authentication error:', err);
+      setAuthError(err.message || 'Authentication failed. Please verify your credentials.');
     } finally {
       setIsSubmitting(false);
     }
@@ -167,16 +174,47 @@ export default function Layout({ children }) {
            <p className="text-center text-slate-500 dark:text-slate-400 text-sm mb-8">{isSignup ? 'Set up your investor profile' : 'Login to view your portfolio.'}</p>
            
            <form onSubmit={handleLogin} className="space-y-4">
+             {authError && (
+               <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center gap-2.5">
+                 <span className="material-symbols-outlined text-lg shrink-0">error</span>
+                 <span>{authError}</span>
+               </div>
+             )}
+
              <div>
                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Username</label>
                <input 
                  type="text" 
                  value={loginForm.username}
-                 onChange={e => setLoginForm({...loginForm, username: e.target.value})}
-                 className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                 placeholder="Enter username"
+                 onChange={e => { setLoginForm({...loginForm, username: e.target.value}); setAuthError(null); }}
+                 className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                 placeholder="Enter username (e.g. saksham)"
                  required
                />
+             </div>
+
+             <div>
+               <div className="flex justify-between items-center mb-1">
+                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Password</label>
+               </div>
+               <div className="relative">
+                 <input 
+                   type={showPassword ? "text" : "password"} 
+                   value={loginForm.password}
+                   onChange={e => { setLoginForm({...loginForm, password: e.target.value}); setAuthError(null); }}
+                   className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg pl-4 pr-11 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                   placeholder={isSignup ? "Create a password (min 4 characters)" : "Enter password"}
+                   required
+                 />
+                 <button
+                   type="button"
+                   onClick={() => setShowPassword(!showPassword)}
+                   className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors flex items-center justify-center"
+                   title={showPassword ? "Hide password" : "Show password"}
+                 >
+                   <span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                 </button>
+               </div>
              </div>
 
              {isSignup && (
@@ -187,7 +225,7 @@ export default function Layout({ children }) {
                      type="text" 
                      value={loginForm.full_name}
                      onChange={e => setLoginForm({...loginForm, full_name: e.target.value})}
-                     className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                     className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
                      placeholder="Enter your full name"
                    />
                  </div>
@@ -197,7 +235,7 @@ export default function Layout({ children }) {
                      <select 
                        value={loginForm.risk_profile}
                        onChange={e => setLoginForm({...loginForm, risk_profile: e.target.value})}
-                       className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none [&>option]:bg-white dark:[&>option]:bg-slate-900"
+                       className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm [&>option]:bg-white dark:[&>option]:bg-slate-900"
                      >
                        <option value="Defender">Defender (Low Risk)</option>
                        <option value="Balanced">Balanced</option>
@@ -209,7 +247,7 @@ export default function Layout({ children }) {
                      <select 
                        value={loginForm.investment_horizon}
                        onChange={e => setLoginForm({...loginForm, investment_horizon: e.target.value})}
-                       className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none [&>option]:bg-white dark:[&>option]:bg-slate-900"
+                       className="w-full bg-transparent border border-slate-300 dark:border-slate-700 dark:text-white rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm [&>option]:bg-white dark:[&>option]:bg-slate-900"
                      >
                        <option value="Short-term">Short-term</option>
                        <option value="Medium-term">Medium-term</option>
@@ -227,7 +265,7 @@ export default function Layout({ children }) {
                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors shadow-md mt-4 cursor-pointer disabled:opacity-70 flex items-center justify-center gap-2"
                style={{ cursor: 'pointer', touchAction: 'manipulation' }}
              >
-               {isSubmitting ? 'Please wait...' : (isSignup ? 'Sign Up' : 'Log In')}
+               {isSubmitting ? 'Please wait...' : (isSignup ? 'Create Account' : 'Log In')}
              </button>
 
              <button
@@ -237,7 +275,7 @@ export default function Layout({ children }) {
                style={{ cursor: 'pointer', touchAction: 'manipulation' }}
              >
                <span className="material-symbols-outlined text-sm text-emerald-500">bolt</span>
-               Instant Demo Access (saksham)
+               Instant Demo Access (saksham / saksham123)
              </button>
            </form>
 
@@ -248,6 +286,7 @@ export default function Layout({ children }) {
                onClick={(e) => {
                  e.preventDefault();
                  e.stopPropagation();
+                 setAuthError(null);
                  setIsSignup(prev => !prev);
                }} 
                className="text-blue-600 dark:text-blue-400 font-bold hover:underline inline-block p-1"
