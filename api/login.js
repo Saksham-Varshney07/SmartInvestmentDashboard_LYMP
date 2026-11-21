@@ -1,5 +1,8 @@
 // Serverless authentication and user registry endpoint for Vercel
-// Supports registration and strict password verification
+// Backed by persistent cloud storage (GitHub Gist) + in-memory fast caching
+
+const GIST_ID = process.env.GIST_ID || '342a9ebbf685161fd3b737938ac6f337';
+const GIST_TOKEN = process.env.GIST_TOKEN || '';
 
 const initialUsers = [
   {
@@ -13,17 +16,106 @@ const initialUsers = [
   }
 ];
 
-// Persistent in-memory map across lambda warmup invocations
-const userStore = new Map();
-initialUsers.forEach(u => userStore.set(u.username.toLowerCase(), u));
+// In-memory cache across warm Lambda invocations
+const localCache = new Map();
+initialUsers.forEach(u => localCache.set(u.username.toLowerCase(), u));
+let lastRemoteFetch = 0;
+
+async function fetchRemoteUsers() {
+  const map = new Map();
+  initialUsers.forEach(u => map.set(u.username.toLowerCase(), u));
+
+  if (!GIST_ID) return map;
+
+  try {
+    const headers = {
+      'User-Agent': 'SmartInvestmentDashboard-Vercel',
+      'Accept': 'application/vnd.github+json'
+    };
+    if (GIST_TOKEN) {
+      headers['Authorization'] = `Bearer ${GIST_TOKEN}`;
+    }
+
+    const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+      headers,
+      cache: 'no-store'
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const content = data.files?.['users.json']?.content || data.files?.['gistfile0.txt']?.content;
+      if (content) {
+        const parsed = JSON.parse(content);
+        for (const [k, v] of Object.entries(parsed)) {
+          if (k && v) {
+            map.set(k.toLowerCase(), v);
+            localCache.set(k.toLowerCase(), v);
+          }
+        }
+        lastRemoteFetch = Date.now();
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch remote users from Gist:', err.message);
+  }
+
+  return map;
+}
+
+async function saveUserToRemote(newUser) {
+  localCache.set(newUser.username.toLowerCase(), newUser);
+
+  if (!GIST_ID || !GIST_TOKEN) return false;
+
+  try {
+    const currentUsers = await fetchRemoteUsers();
+    currentUsers.set(newUser.username.toLowerCase(), newUser);
+
+    const usersObj = {};
+    for (const [k, v] of currentUsers.entries()) {
+      usersObj[k] = v;
+    }
+
+    const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+      method: 'PATCH',
+      headers: {
+        'User-Agent': 'SmartInvestmentDashboard-Vercel',
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${GIST_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        description: 'Smart Investment User Registry',
+        files: {
+          'users.json': {
+            content: JSON.stringify(usersObj, null, 2)
+          }
+        }
+      })
+    });
+
+    return res.ok;
+  } catch (err) {
+    console.error('Failed to sync new user to Gist:', err);
+    return false;
+  }
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  if (req.method === 'GET') {
+    const users = await fetchRemoteUsers();
+    return res.status(200).json({
+      status: 'success',
+      count: users.size
+    });
   }
 
   if (req.method !== 'POST') {
@@ -63,7 +155,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ status: 'error', message: 'Password must be at least 4 characters long.' });
       }
 
-      if (userStore.has(key)) {
+      // Check remote users across devices
+      const remoteUsers = await fetchRemoteUsers();
+      if (remoteUsers.has(key) || localCache.has(key)) {
         return res.status(409).json({ status: 'error', message: 'Username is already taken. Please choose another username or Log In.' });
       }
 
@@ -78,7 +172,7 @@ export default async function handler(req, res) {
         investment_horizon: investmentHorizon
       };
 
-      userStore.set(key, newUser);
+      await saveUserToRemote(newUser);
 
       return res.status(200).json({
         status: 'success',
@@ -92,7 +186,13 @@ export default async function handler(req, res) {
     }
 
     // Normal Log In
-    const existing = userStore.get(key);
+    let existing = localCache.get(key);
+    // If not in local in-memory cache or cache is older than 10s, fetch fresh from cloud storage
+    if (!existing || (Date.now() - lastRemoteFetch > 10000)) {
+      const remoteUsers = await fetchRemoteUsers();
+      existing = remoteUsers.get(key) || localCache.get(key);
+    }
+
     if (!existing) {
       return res.status(404).json({
         status: 'error',

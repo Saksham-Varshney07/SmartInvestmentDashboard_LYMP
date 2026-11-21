@@ -1,6 +1,9 @@
 {
   "rewrites": [
     { "source": "/api/analyze/:symbol", "destination": "/api/analyze?symbol=:symbol" },
+    { "source": "/api/portfolio/transaction/:tx_id", "destination": "/api/portfolio?tx_id=:tx_id" },
+    { "source": "/api/portfolio/transaction", "destination": "/api/portfolio" },
+    { "source": "/api/portfolio/:user_id", "destination": "/api/portfolio?user_id=:user_id" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/" }
   ]

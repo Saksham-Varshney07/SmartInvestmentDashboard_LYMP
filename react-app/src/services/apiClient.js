@@ -450,7 +450,7 @@ export function getLocalPortfolioState(userId, type = 'real') {
 export async function fetchPortfolio(userId, type = 'real') {
   if (HAS_ACCESSIBLE_BACKEND) {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/${userId}?type=${type}`, {}, 2000);
+      const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/${userId}?type=${type}`, {}, 3500);
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'success' && data.summary) {
@@ -475,10 +475,22 @@ export async function savePortfolioTransaction(txData, type = 'real') {
         method: txData.id ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...txData, portfolio_type: type })
-      }, 2000);
+      }, 3500);
       if (res.ok) {
         const data = await res.json();
-        if (data.status === 'success') return data;
+        if (data.status === 'success') {
+          // Keep local storage in sync
+          const storageKey = getUserStorageKey(userId, type);
+          let list = [];
+          try { list = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch (e) { list = []; }
+          if (txData.id) {
+            list = list.map(item => item.id === txData.id ? { ...item, ...txData } : item);
+          } else {
+            list.push({ ...txData, id: Date.now(), created_at: new Date().toISOString().split('T')[0] });
+          }
+          localStorage.setItem(storageKey, JSON.stringify(list));
+          return data;
+        }
       }
     } catch (e) {
       // Fall back to localStorage update
@@ -510,10 +522,18 @@ export async function savePortfolioTransaction(txData, type = 'real') {
 export async function deletePortfolioTransaction(id, type = 'real', userId) {
   if (HAS_ACCESSIBLE_BACKEND) {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/transaction/${id}`, { method: 'DELETE' }, 2000);
+      const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/transaction/${id}?user_id=${userId}&type=${type}`, { method: 'DELETE' }, 3500);
       if (res.ok) {
         const data = await res.json();
-        if (data.status === 'success') return data;
+        if (data.status === 'success') {
+          const storageKey = getUserStorageKey(userId, type);
+          try {
+            let list = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            list = list.filter(item => item.id !== id);
+            localStorage.setItem(storageKey, JSON.stringify(list));
+          } catch (e) {}
+          return data;
+        }
       }
     } catch (e) {
       // Fall back to localStorage removal
@@ -897,7 +917,7 @@ export async function loginUser(loginForm, isSignup = false) {
           investment_horizon: loginForm.investment_horizon || 'Medium-term',
           is_signup: true
         })
-      }, 2000);
+      }, 6000);
 
       const data = await res.json();
       if (!res.ok || data.status === 'error') {
@@ -951,7 +971,7 @@ export async function loginUser(loginForm, isSignup = false) {
   }
 
   // Handle Log In
-  // 1. First try calling /api/login endpoint
+  // 1. First try calling /api/login endpoint backed by cloud registry
   try {
     const res = await fetchWithTimeout(`${API_BASE}/api/login`, {
       method: 'POST',
@@ -961,13 +981,20 @@ export async function loginUser(loginForm, isSignup = false) {
         password,
         is_signup: false
       })
-    }, 2000);
+    }, 6000);
 
     const data = await res.json();
     if (!res.ok || data.status === 'error') {
       throw new Error(data.message || 'Authentication failed.');
     }
     if (data && data.status === 'success') {
+      // Save to local device accounts cache so offline access also works
+      try {
+        if (!localAccounts.some(acc => acc.username.toLowerCase() === normalizedUsername)) {
+          localAccounts.push({ ...data, password });
+          localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
+        }
+      } catch (e) {}
       return data;
     }
   } catch (apiErr) {
