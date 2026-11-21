@@ -38,3 +38,5 @@ obj/
 runbook.md backend/tunnel.log
 
 .vercel/
+
+CODEBASE_EXPLAINER.md
