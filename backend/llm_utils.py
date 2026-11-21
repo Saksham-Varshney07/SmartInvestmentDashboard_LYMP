@@ -20,7 +20,7 @@ def ask_ai_about_stock(symbol: str, question: str) -> str:
         completion = client.chat.completions.create(
             model="poolside/laguna-xs-2.1:free",
             messages=[
-                {"role": "system", "content": "You are a financial advisor assistant in the Smart Investment app. Answer questions concisely and professionally."},
+                {"role": "system", "content": "You are a friendly, clear financial advisor assistant in the Smart Investment app. Explain things in simple, everyday language so regular people and students can easily understand, without complex financial jargon. Keep answers concise (2-3 sentences)."},
                 {"role": "user", "content": f"The user is asking about the stock {symbol}. Here is their question:\n{question}"}
             ],
             max_tokens=300
