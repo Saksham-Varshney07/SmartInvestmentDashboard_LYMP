@@ -143,7 +143,7 @@ export default function Portfolio() {
 
   const deleteTransaction = async (id) => {
     try {
-      await deletePortfolioTransaction(id, portfolioType);
+      await deletePortfolioTransaction(id, portfolioType, currentUser?.user_id);
       fetchPortfolio();
     } catch(e) {
       console.error(e);

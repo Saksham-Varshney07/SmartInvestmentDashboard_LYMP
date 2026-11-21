@@ -300,19 +300,32 @@ const DEFAULT_SANDBOX_TX = [
   { id: 103, symbol: 'TATASTEEL.NS', transaction_type: 'BUY', shares: 300, price_at_purchase: 142.0, created_at: '2026-10-28' }
 ];
 
-export function getLocalPortfolioState(type = 'real') {
-  const storageKey = `portfolio_tx_${type}`;
+export function getUserStorageKey(userId, type = 'real') {
+  const uid = (userId !== undefined && userId !== null && userId !== '') ? String(userId).toLowerCase() : 'guest';
+  return `portfolio_tx_${uid}_${type}`;
+}
+
+export function getLocalPortfolioState(userId, type = 'real') {
+  const storageKey = getUserStorageKey(userId, type);
   let txList = [];
   try {
     const saved = localStorage.getItem(storageKey);
-    if (saved) {
+    if (saved !== null) {
       txList = JSON.parse(saved);
     } else {
-      txList = type === 'real' ? [...DEFAULT_REAL_TX] : [...DEFAULT_SANDBOX_TX];
-      localStorage.setItem(storageKey, JSON.stringify(txList));
+      // ONLY seed default portfolio for the demo account 'saksham' (user_id: 1)
+      const isDemoUser = (userId === 1 || userId === '1' || String(userId).toLowerCase() === 'saksham');
+      if (isDemoUser) {
+        txList = type === 'real' ? [...DEFAULT_REAL_TX] : [...DEFAULT_SANDBOX_TX];
+        localStorage.setItem(storageKey, JSON.stringify(txList));
+      } else {
+        // Any newly created account starts completely clean and empty (0 data)
+        txList = [];
+        localStorage.setItem(storageKey, JSON.stringify([]));
+      }
     }
   } catch (e) {
-    txList = type === 'real' ? [...DEFAULT_REAL_TX] : [...DEFAULT_SANDBOX_TX];
+    txList = [];
   }
 
   // Aggregate holdings
@@ -448,10 +461,11 @@ export async function fetchPortfolio(userId, type = 'real') {
       // Offline / Mobile / Vercel
     }
   }
-  return getLocalPortfolioState(type);
+  return getLocalPortfolioState(userId, type);
 }
 
 export async function savePortfolioTransaction(txData, type = 'real') {
+  const userId = txData.user_id || 'guest';
   if (HAS_ACCESSIBLE_BACKEND) {
     try {
       const url = txData.id 
@@ -471,7 +485,7 @@ export async function savePortfolioTransaction(txData, type = 'real') {
     }
   }
 
-  const storageKey = `portfolio_tx_${type}`;
+  const storageKey = getUserStorageKey(userId, type);
   let list = [];
   try {
     list = JSON.parse(localStorage.getItem(storageKey) || '[]');
@@ -493,18 +507,20 @@ export async function savePortfolioTransaction(txData, type = 'real') {
   return { status: 'success' };
 }
 
-export async function deletePortfolioTransaction(id, type = 'real') {
-  try {
-    const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/transaction/${id}`, { method: 'DELETE' }, 2000);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.status === 'success') return data;
+export async function deletePortfolioTransaction(id, type = 'real', userId) {
+  if (HAS_ACCESSIBLE_BACKEND) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/transaction/${id}`, { method: 'DELETE' }, 2000);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'success') return data;
+      }
+    } catch (e) {
+      // Fall back to localStorage removal
     }
-  } catch (e) {
-    // Fall back to localStorage removal
   }
 
-  const storageKey = `portfolio_tx_${type}`;
+  const storageKey = getUserStorageKey(userId, type);
   try {
     let list = JSON.parse(localStorage.getItem(storageKey) || '[]');
     list = list.filter(item => item.id !== id);
@@ -795,7 +811,7 @@ export async function applyBlueprint(userId, allocations) {
     if (res.ok) return { status: 'success' };
   } catch (e) {}
 
-  const storageKey = 'portfolio_tx_sandbox';
+  const storageKey = getUserStorageKey(userId, 'sandbox');
   const newTxList = (allocations || []).map((alloc, idx) => {
     const match = STOCK_DICTIONARY.find(s => s.symbol.toUpperCase() === (alloc.ticker || alloc.name).toUpperCase());
     const price = match?.price || 1000;
@@ -891,6 +907,14 @@ export async function loginUser(loginForm, isSignup = false) {
         const newEntry = { ...data, password };
         localAccounts.push(newEntry);
         localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
+        // Initialize clean, completely empty portfolio for new account
+        try {
+          const uid = data.user_id || username;
+          localStorage.setItem(getUserStorageKey(uid, 'real'), JSON.stringify([]));
+          localStorage.setItem(getUserStorageKey(uid, 'sandbox'), JSON.stringify([]));
+          localStorage.setItem(getUserStorageKey(username, 'real'), JSON.stringify([]));
+          localStorage.setItem(getUserStorageKey(username, 'sandbox'), JSON.stringify([]));
+        } catch (e) {}
         return data;
       }
     } catch (apiErr) {
@@ -914,6 +938,15 @@ export async function loginUser(loginForm, isSignup = false) {
 
     localAccounts.push(newUser);
     localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
+
+    // Initialize clean, completely empty portfolio for new account
+    try {
+      localStorage.setItem(getUserStorageKey(newId, 'real'), JSON.stringify([]));
+      localStorage.setItem(getUserStorageKey(newId, 'sandbox'), JSON.stringify([]));
+      localStorage.setItem(getUserStorageKey(username, 'real'), JSON.stringify([]));
+      localStorage.setItem(getUserStorageKey(username, 'sandbox'), JSON.stringify([]));
+    } catch (e) {}
+
     return newUser;
   }
 
