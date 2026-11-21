@@ -7,46 +7,45 @@ const generateSmartFallbackAnswer = (symbol, chatHistory, stockData, pageContext
   // Screen / page context questions
   if (query.includes('screen') || query.includes('page') || query.includes('where am i')) {
     const screenName = pageContext || 'Dashboard';
-    answer = `You are currently on the "${screenName}" screen. ${
-      livePageData ? `\n\nLive Screen Data:\n${livePageData}` : 'Ask me anything about the data on this screen!'
-    }`;
+    answer = `You are currently on the "${screenName}" screen. ${livePageData ? `\n\nLive Screen Data:\n${livePageData}` : 'Ask me anything about the data on this screen!'
+      }`;
   }
   // 1. Dashboard questions
   else if (query.includes('dashboard')) {
-    answer = "The Dashboard is your main financial overview. It gives you a 360-degree view of your net worth, total investments, real-time market indices (like NIFTY 50 & S&P 500), asset allocation charts, and recent activity.";
+    answer = "The Dashboard is your main home screen. It gives you a simple, all-in-one view of your total money, daily gains or losses, and how your investments are split across stocks, cryptos, and commodities.";
   }
   // 2. Correlation Matrix / Diversification questions
   else if (query.includes('correlation') || query.includes('matrix')) {
     if (livePageData && (livePageData.includes('CORRELATION MATRIX') || livePageData.includes('Correlation between'))) {
       const lines = livePageData.split('\n').filter(l => l.includes('Correlation between') || l.includes('vs'));
       if (lines.length > 0) {
-        answer = `Here is the correlation breakdown for your selected stocks:\n\n${lines.slice(0, 5).join('\n')}\n\n• Green (< 0.3): Move independently, ideal for risk hedging.\n• Red (> 0.7): Move in lockstep, increasing vulnerability to sector pullbacks.`;
+        answer = `Here is how your chosen stocks relate to each other in simple terms:\n\n${lines.slice(0, 5).join('\n')}\n\n• Green (< 0.3): Move independently, which protects your savings if one stock drops.\n• Red (> 0.7): Move in lockstep together, which increases your risk if that sector falls.`;
       } else {
-        answer = "The Asset Correlation Matrix measures how your selected stocks move relative to each other on a scale of -1.0 to +1.0:\n\n• High (>0.7 / Red): Stocks move together in the same direction.\n• Low (<0.3 / Green): Stocks move independently, providing strong diversification.\n• Moderate (0.3 - 0.7 / Yellow): Moderate co-movement.";
+        answer = "The Correlation Matrix shows whether your stocks move together or independently on a scale of -1 to +1:\n\n• Low (< 0.3 / Green): Stocks move independently, giving you good safety and diversification.\n• High (> 0.7 / Red): Stocks move together in the same direction, which means higher risk if that industry drops.\n• Moderate (0.3 to 0.7 / Yellow): Normal average connection.";
       }
     } else {
-      answer = "The Asset Correlation Matrix measures the statistical relationship between your chosen holdings on a scale of -1.0 to +1.0:\n\n• High Correlation (+0.7 to +1.0): Assets move in lockstep. Holding too many highly correlated stocks increases vulnerability during sector pullbacks.\n• Low / Moderate Correlation (0.0 to +0.4): Healthy diversification where different assets react independently to macro news.\n• Negative Correlation (-1.0 to 0.0): Strong hedge protection where gains in one asset offset drops in another.\n\nTip: Balance high-beta growth stocks with defensive sector leaders or fixed income to maintain an optimal Sharpe ratio.";
+      answer = "The Correlation Matrix checks how your stocks move compared to each other on a scale of -1.0 to +1.0:\n\n• High (> 0.7): Stocks rise and fall together. If one gets hit, they all get hit.\n• Low (< 0.3): Stocks act independently, which acts as a safety cushion for your money.\n• Negative (< 0): Great insurance—when one drops, the other tends to rise.\n\nTip: Mix steady defensive companies with growth stocks to keep your portfolio stable.";
     }
   }
   // 3. Risk / Volatility analysis questions
   else if (query.includes('risk') || query.includes('volatility') || query.includes('var') || query.includes('sharpe')) {
-    answer = "Risk Analysis evaluates your portfolio's volatility, sector concentration, and drawdown risks. It computes Value-at-Risk (VaR), Sharpe Ratio, and helps you simulate market stress conditions to rebalance your allocation.";
+    answer = "Risk Analysis checks how bumpy your investment ride might be. It calculates how much your stocks could swing during bad market days and helps you balance your holdings so you don't take unnecessary risks.";
   }
   // 4. XIRR / Returns questions
   else if (query.includes('xirr') || query.includes('cagr') || query.includes('compounding')) {
-    answer = "Cumulative XIRR (Extended Internal Rate of Return) calculates your annualized returns while factoring in the exact dates of multiple buys, sells, and dividends. Unlike simple percentage return, XIRR gives an accurate measure of real compounding performance on staggered capital deployments.";
+    answer = "XIRR is your true annual return percentage. Unlike a simple profit percentage that ignores time, XIRR factors in the exact dates you put in or took out money, showing you the real speed your money is compounding.";
   }
   // 5. Portfolio / Sandbox questions
   else if (query.includes('portfolio') || query.includes('sandbox')) {
-    answer = "The Portfolio view tracks your holdings and real transactions. You can switch between 'Real Portfolio' and 'Sandbox Portfolio' to test trading strategies without risking real capital.";
+    answer = "The Portfolio screen tracks your holdings and cash flows. You can switch between 'Real Portfolio' (real money) and 'Sandbox Portfolio' to safely test new stock ideas with zero risk.";
   }
   // 6. SIP / Planner questions
   else if (query.includes('sip') || query.includes('planner') || query.includes('calculate')) {
-    answer = "The SIP Planner calculates long-term compounding growth on monthly systematic investments. It shows your target corpus, total invested amount, and estimated wealth gains over 1 to 30 years.";
+    answer = "The SIP Planner shows how a regular monthly deposit (like ₹5,000 or ₹10,000) can compound into a large sum of wealth over 5, 10, or 20 years.";
   }
   // 7. Asset / Explorer / Search / Screener questions
   else if (query.includes('asset') || query.includes('explorer') || query.includes('search') || query.includes('screener') || query.includes('sector')) {
-    answer = "The Screener & Asset Explorer lets you compare sector leaders, analyze P/E multiples, 52-week channels, and inspect quantitative ML risk tags.";
+    answer = "The Screener lets you discover top sector leaders, check whether stock prices are cheap or expensive (P/E ratio), and view automated safety ratings.";
   }
   // 8. Greetings / Intro
   else if (/\b(hello|hi|hey|who are you|help|greetings)\b/i.test(query)) {
@@ -68,49 +67,49 @@ const generateSmartFallbackAnswer = (symbol, chatHistory, stockData, pageContext
       const change = stockData.returns || 0;
       const currency = stockData.currency || (symbol?.endsWith('.NS') ? '₹' : '$');
       const isPositive = change >= 0;
-      
+
       if (isInvestQuery) {
         answer = isPositive
-          ? `Yes, ${stockName} is demonstrating strong upward momentum (+${change.toFixed(2)}% today at ${currency}${price}). Technical indicators support a phased accumulation approach (SIP) with trailing stop-loss.`
-          : `${stockName} is currently consolidating at ${currency}${price} (${change.toFixed(2)}%). It offers a disciplined buy-on-dips entry for medium to long-term investors aiming for mean-reversion upside.`;
+          ?`Yes, ${stockName} is looking quite strong today (+${change.toFixed(2)}% at ${currency}${price}). The price has healthy upward momentum, making it a solid choice to invest in steadily (like through a monthly SIP) rather than all at once.`
+          : `${stockName} has pulled back a bit to ${currency}${price} (${change.toFixed(2)}% today). If you like this company for the long run, small dips like this can be a patient, lower-risk buying chance.`;
       } else if (isRiskQuery) {
-        answer = `${stockName} displays ${isPositive ? 'low to moderate' : 'heightened'} volatility. With current trading at ${currency}${price}, keep your single-stock position size below 10-15% of total portfolio value.`;
-      } else if (isTargetQuery) {
-        const estTarget = (price * (isPositive ? 1.12 : 1.08)).toFixed(1);
-        answer = `Quantitative price action models project a 3-month upside horizon toward ${currency}${estTarget} for ${stockName}, backed by solid sector liquidity.`;
-      } else if (isPerfQuery) {
-        answer = `${stockName} is trading at ${currency}${price} (${isPositive ? '+' : ''}${change.toFixed(2)}% today). Price action and technical indicators show ${isPositive ? 'resilient buyer accumulation' : 'mild consolidation'}, in line with broader sector sentiment.`;
-      } else {
-        answer = `${stockName} is trading at ${currency}${price} (${isPositive ? '+' : ''}${change.toFixed(2)}% today). Fundamentals indicate healthy institutional interest with sound balance sheet liquidity.`;
-      }
+  answer = `${stockName} currently has ${isPositive ? 'low to normal' : 'slightly higher'} daily price swings. With the price around ${currency}${price}, a smart safety rule is to keep this stock to no more than 10-15% of your total savings.`;
+} else if (isTargetQuery) {
+  const estTarget = (price * (isPositive ? 1.12 : 1.08)).toFixed(1);
+  answer = `If market demand stays steady, ${stockName} has room to gradually move up toward ${currency}${estTarget} over the coming months.`;
+} else if (isPerfQuery) {
+  answer = `${stockName} is trading at ${currency}${price} (${isPositive ? '+' : ''}${change.toFixed(2)}% today). The business is operating steadily, and its trading activity looks calm and stable compared to the broader market.`;
+} else {
+  answer = `${stockName} is currently trading at ${currency}${price} (${isPositive ? '+' : ''}${change.toFixed(2)}% today). The company is financially healthy, but remember to keep your money balanced across different industries.`;
+}
     } else {
-      // Dynamic fallback when live price object is not yet loaded in context
-      if (isInvestQuery) {
-        answer = `Yes, ${stockName} presents a viable investment setup. Current sector multiples and quantitative momentum favor accumulation in staggered tranches over a 6 to 12-month horizon.`;
-      } else if (isRiskQuery) {
-        answer = `The quantitative risk engine rates ${stockName} as Moderate risk with low systemic contagion probability. Diversifying across defensive sectors will further cushion potential drawdowns.`;
-      } else if (isTargetQuery) {
-        answer = `Sector consensus projects an estimated 10-15% annual return potential for ${stockName}, assuming benchmark indices sustain support above key moving averages.`;
-      } else if (isSellQuery) {
-        answer = `For ${stockName}, consider trailing a stop-loss 5% below its recent swing low. If your investment thesis remains intact, holding through consolidation is recommended.`;
-      } else if (isPerfQuery) {
-        answer = `Analysis on ${stockName}: The company demonstrates resilient operational performance and strong market capitalization. Technical indicators show healthy institutional positioning.`;
-      } else {
-        answer = `Analysis on ${stockName}: The company demonstrates resilient operational metrics and strong market presence. Momentum and volume profiles indicate favorable risk-adjusted positioning.`;
-      }
-    }
+  // Dynamic fallback when live price object is not yet loaded in context
+  if (isInvestQuery) {
+    answer = `Yes, ${stockName} is an established company with steady demand. For most everyday investors, investing a fixed amount monthly (SIP) is safer and less stressful than timing the market.`;
+  } else if (isRiskQuery) {
+    answer = `The quantitative models rate ${stockName} as Moderate risk with stable day-to-day operations. Spreading your investments across different sectors will keep your money well-protected.`;
+  } else if (isTargetQuery) {
+    answer = `Over the next year, analysts expect ${stockName} to deliver steady 10% to 15% growth if market conditions remain supportive.`;
+  } else if (isSellQuery) {
+    answer = `If you have good gains in ${stockName}, locking in some profit is always a smart move. But if you're holding for the long run and the business is doing well, staying patient through normal ups and downs usually works best.`;
+  } else if (isPerfQuery) {
+    answer = `${stockName} continues to show dependable business performance with good customer demand and steady industry standing.`;
+  } else {
+    answer = `${stockName} has a reliable presence in its sector with consistent day-to-day operations, making it a good stock to monitor.`;
+  }
+}
   }
   // 8. General financial / context fallback
   else {
-    const contextInfo = pageContext ? ` (currently on ${pageContext})` : "";
-    answer = `Based on your portfolio setup${contextInfo}, maintaining a diversified asset allocation between growth equities, index funds, and cash reserves provides optimal risk-adjusted returns over time.`;
-  }
+  const contextInfo = pageContext ? ` (currently on ${pageContext})` : "";
+  answer = `Based on your portfolio setup${contextInfo}, maintaining a diversified asset allocation between growth equities, index funds, and cash reserves provides optimal risk-adjusted returns over time.`;
+}
 
-  if (!answer.includes('⚠️ Invest at your own risk.')) {
-    answer += '\n\n⚠️ Invest at your own risk.';
-  }
+if (!answer.includes('⚠️ Invest at your own risk.')) {
+  answer += '\n\n⚠️ Invest at your own risk.';
+}
 
-  return answer;
+return answer;
 };
 
 // Strips stray XML tags, chain-of-thought, or internal model thinking processes
@@ -151,9 +150,9 @@ export const cleanModelOutput = (text) => {
 
       // Check if there is a paragraph ending with "Invest at your own risk" that isn't part of instructions
       const paragraphs = afterThinking.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
-      const answerPara = paragraphs.reverse().find(p => 
-        (p.includes('Invest at your own risk') || p.includes('⚠️')) && 
-        !/^we need to /i.test(p) && 
+      const answerPara = paragraphs.reverse().find(p =>
+        (p.includes('Invest at your own risk') || p.includes('⚠️')) &&
+        !/^we need to /i.test(p) &&
         !/^\d+\.\s*\*\*/.test(p) &&
         !/^user asks/i.test(p)
       );
@@ -169,9 +168,9 @@ export const cleanModelOutput = (text) => {
   // 4. Strip prompt-reflection / meta-planning text (e.g. 'We need to respond with... The user asks: ...')
   if (/^we need to (?:respond|output)/i.test(cleaned) || /^user (?:query|asks):/i.test(cleaned)) {
     const parts = cleaned.split(/\n\n+/);
-    const validParts = parts.filter(p => 
-      !/^we need to/i.test(p) && 
-      !/^the user asks/i.test(p) && 
+    const validParts = parts.filter(p =>
+      !/^we need to/i.test(p) &&
+      !/^the user asks/i.test(p) &&
       !/^user (?:query|asks):/i.test(p) &&
       !/^\d+\.\s*\*\*/.test(p) &&
       !/they want a verdict/i.test(p)
@@ -198,9 +197,9 @@ export const cleanModelOutput = (text) => {
 
 export const askAiChat = async (symbol, chatHistory, stockData, pageContext = "", livePageData = "") => {
   try {
-    const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || 
-                   localStorage.getItem('openRouterApiKey') || 
-                   localStorage.getItem('openrouter_api_key');
+    const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY ||
+      localStorage.getItem('openRouterApiKey') ||
+      localStorage.getItem('openrouter_api_key');
 
     const targetSymbol = (symbol || stockData?.symbol || '').trim();
     const rawCompanyName = stockData?.company_name || stockData?.name || '';
@@ -222,16 +221,16 @@ export const askAiChat = async (symbol, chatHistory, stockData, pageContext = ""
       }
 
       const contextStr = pageContext ? `Screen Context: ${pageContext}.\n` : "";
-      const symbolStr = targetSymbol 
+      const symbolStr = targetSymbol
         ? `Active Target Stock: ${companyLabel}.\nIMPORTANT CONTEXT INSTRUCTION: When the user asks "how is this stock performing?", "is it a good buy?", "what are its risks?", "should I buy it?", or uses pronouns like "this stock", "this company", "it", or "its", they are explicitly asking about ${companyLabel}. Never ask the user to specify the ticker or company name — answer directly for ${companyLabel}.\n`
         : "";
-      const liveDataHeader = livePageData 
+      const liveDataHeader = livePageData
         ? `\n--- LIVE METRICS FROM USER'S CURRENT SCREEN ---\n${livePageData}\n----------------------------------------------\nIMPORTANT: Use the specific numbers, stock pairs, and blueprint allocations in the screen data above to answer the user's question directly. Do NOT assume holdings or allocations are 0.00% if simulated blueprint data is provided.\n`
         : "";
 
-      const promptDirective = `You are AInvestor, an expert institutional AI financial advisor in Smart Invest 360.
-${contextStr}${symbolStr}${stockContext}${liveDataHeader}
-Answer the user's question clearly, informatively, and directly in 2-4 sentences using the live data on screen.
+      const promptDirective = `You are AInvestor, a friendly and clear AI financial advisor in Smart Invest 360 designed for everyday retail investors.
+        ${ contextStr }${ symbolStr }${ stockContext }${ liveDataHeader }
+Answer the user's question clearly, warmly, and in simple, easy-to-understand language in 2-3 sentences. Avoid complicated Wall Street jargon; explain concepts simply so anyone can understand what the numbers mean for their money.
 Always end with: ⚠️ Invest at your own risk.`;
 
       // Transform chat history into universally compatible messages format (user role instruction to avoid 400 system rejections)
@@ -239,7 +238,7 @@ Always end with: ⚠️ Invest at your own risk.`;
         if (idx === chatHistory.length - 1 && m.role === 'user') {
           return {
             role: 'user',
-            content: `${promptDirective}\n\nUser Question: ${m.content}`
+            content: `${ promptDirective } \n\nUser Question: ${ m.content } `
           };
         }
         return m;
@@ -263,7 +262,7 @@ Always end with: ⚠️ Invest at your own risk.`;
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey.trim()}`,
+              'Authorization': `Bearer ${ apiKey.trim() } `,
               'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173',
               'X-Title': 'Smart Investment Dashboard'
             },
@@ -294,7 +293,7 @@ Always end with: ⚠️ Invest at your own risk.`;
             }
           }
         } catch (callErr) {
-          console.warn(`Model ${modelId} timed out or failed, checking next model:`, callErr.name || callErr.message);
+          console.warn(`Model ${ modelId } timed out or failed, checking next model: `, callErr.name || callErr.message);
         }
       }
     }
@@ -364,24 +363,24 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
   const targetSymbol = (symbol || stockData?.symbol || '').trim();
   const rawCompanyName = stockData?.company_name || stockData?.name || '';
   const cleanName = rawCompanyName || (targetSymbol ? targetSymbol.replace(/\.(NS|BO)$/i, '') : '');
-  const companyLabel = cleanName ? `${cleanName} (${targetSymbol})` : targetSymbol;
+  const companyLabel = cleanName ? `${ cleanName } (${ targetSymbol })` : targetSymbol;
 
   let stockContext = "";
   if (targetSymbol) {
     const price = stockData?.latest_price || stockData?.price;
     const change = stockData?.returns ?? stockData?.change;
     const currency = stockData?.currency || (targetSymbol.endsWith('.NS') ? '₹' : '$');
-    stockContext = `Target Stock Asset: ${companyLabel}.`;
+    stockContext = `Target Stock Asset: ${ companyLabel }.`;
     if (price !== undefined && price !== null && price > 0) {
-      stockContext += ` Current Market Price: ${currency}${price}`;
+      stockContext += ` Current Market Price: ${ currency }${ price } `;
       if (change !== undefined && change !== null) {
-        stockContext += ` (${Number(change) >= 0 ? '+' : ''}${typeof change === 'number' ? change.toFixed(2) : change}% today)`;
+        stockContext += ` (${ Number(change) >= 0 ? '+' : ''}${ typeof change === 'number' ? change.toFixed(2) : change }% today)`;
       }
       stockContext += `.`;
     }
-    if (stockData?.sector) stockContext += ` Sector: ${stockData.sector}.`;
-    if (stockData?.pe_ratio) stockContext += ` P/E Ratio: ${stockData.pe_ratio}.`;
-    if (stockData?.risk) stockContext += ` Quantitative Risk: ${stockData.risk}.`;
+    if (stockData?.sector) stockContext += ` Sector: ${ stockData.sector }.`;
+    if (stockData?.pe_ratio) stockContext += ` P / E Ratio: ${ stockData.pe_ratio }.`;
+    if (stockData?.risk) stockContext += ` Quantitative Risk: ${ stockData.risk }.`;
   }
 
   // Check if prompt is purely mathematical or greeting with no stock context
@@ -394,19 +393,21 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
     userContent = cleanPrompt;
   } else {
     // If targetSymbol is known and user refers to "this stock", "it", or doesn't mention the ticker name
-    let contextualizedQuestion = cleanPrompt || `Provide your equity recommendation on ${companyLabel || 'this stock'}.`;
+    let contextualizedQuestion = cleanPrompt || `Provide your equity recommendation on ${ companyLabel || 'this stock' }.`;
     if (targetSymbol) {
       const mentionsTicker = cleanPrompt.toLowerCase().includes(targetSymbol.toLowerCase()) || 
                              (cleanName && cleanPrompt.toLowerCase().includes(cleanName.toLowerCase()));
       if (!mentionsTicker) {
-        contextualizedQuestion = `Regarding ${companyLabel}: ${cleanPrompt}`;
+        contextualizedQuestion = `Regarding ${ companyLabel }: ${ cleanPrompt } `;
       }
     }
 
-    userContent = `[INSTITUTIONAL DIRECTIVE: You are analyzing ${companyLabel || 'the requested equity'}. Provide ONLY your direct final verdict and rationale in 2-3 concise sentences. DO NOT say "no ticker provided" or ask for a symbol — the target asset on screen is ${companyLabel}. Absolutely NEVER output any internal thinking process, reasoning steps, or notes.]\n\n${stockContext ? `Live Market Context: ${stockContext}\n` : ''}User Question: ${contextualizedQuestion}\n\nFormat: [BULLISH, BEARISH, or NEUTRAL] - [Concise fundamental reason for ${companyLabel || 'the stock'}]. End with: ⚠️ Invest at your own risk.`;
+    userContent = `[DIRECTIVE FOR EVERYDAY INVESTORS: You are analyzing ${ companyLabel || 'the requested equity' }. Provide ONLY your direct final verdict and an easy - to - understand explanation in 2 - 3 simple, conversational sentences.
+CRITICAL TONE RULE: Speak in plain, everyday English that a regular retail investor or college student can immediately understand.Do NOT use dense financial jargon(strictly avoid phrases like "margin compression", "asset-backed lending franchise", "NBFC practices", "mean-reversion", or "growth catalysts").Instead, explain clearly: how the business is doing, whether the price is steady or under pressure, and what that means for an investor.
+DO NOT say "no ticker provided" or ask for a symbol — the target asset on screen is ${ companyLabel }. Absolutely NEVER output any internal thinking process, reasoning steps, or notes.]\n\n${ stockContext ? `Live Market Context: ${stockContext}\n` : '' }User Question: ${ contextualizedQuestion } \n\nFormat: [BULLISH, BEARISH, or NEUTRAL] - [Simple, plain - English explanation for ${ companyLabel || 'the stock'}].End with: ⚠️ Invest at your own risk.`;
   }
 
-  const systemContent = `You are an institutional equity analyst in Smart Investment Dashboard.${targetSymbol ? ` The user is actively viewing and analyzing ${companyLabel}. All questions like "how is this stock performing?" refer directly to ${companyLabel}.` : ''} Provide ONLY your final, concise verdict and analysis in 2-3 sentences. Absolutely NEVER output any thinking process, internal reasoning, scratchpad, or planning steps. Begin directly with your stance ([BULLISH], [BEARISH], or [NEUTRAL]).`;
+  const systemContent = `You are a friendly, clear financial analyst for everyday investors.${ targetSymbol? ` The user is actively viewing and analyzing ${companyLabel}. All questions like "how is this stock performing?" refer directly to ${companyLabel}.` : ''} Explain your analysis in 2 - 3 short, simple sentences using plain, conversational English with zero dense financial jargon.Tell the investor whether the company is doing well or facing challenges in clear everyday words.Absolutely NEVER output any thinking process, internal reasoning, scratchpad, or planning steps.Begin directly with your stance([BULLISH], [BEARISH], or[NEUTRAL]).`;
 
   const makeSingleCall = async (modelId) => {
     const controller = new AbortController();
@@ -427,7 +428,7 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey.trim()}`,
+          'Authorization': `Bearer ${ apiKey.trim() } `,
           'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173',
           'X-Title': 'Smart Investment Dashboard'
         },
@@ -437,12 +438,12 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
 
       // If a model rejects 'system' role with 400, retry with single user role
       if (response && response.status === 400) {
-        payload.messages = [{ role: 'user', content: `${systemContent}\n\n${userContent}` }];
+        payload.messages = [{ role: 'user', content: `${ systemContent } \n\n${ userContent } ` }];
         response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey.trim()}`,
+            'Authorization': `Bearer ${ apiKey.trim() } `,
             'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173',
             'X-Title': 'Smart Investment Dashboard'
           },
@@ -510,7 +511,7 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
         }
       } else if (res) {
         const errJson = await res.json().catch(() => ({}));
-        lastErrorMsg = errJson.error?.message || errJson.message || `HTTP ${res.status}`;
+        lastErrorMsg = errJson.error?.message || errJson.message || `HTTP ${ res.status } `;
       } else {
         lastErrorMsg = 'Request timed out.';
       }
@@ -543,7 +544,7 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
       content: successfulData.content,
       stance,
       stanceType,
-      latency: `${elapsed}s`,
+      latency: `${ elapsed } s`,
       tokens: successfulData.tokens,
       modelUsed: successfulData.modelUsed || modelActuallyUsed
     };
@@ -557,7 +558,7 @@ export const querySingleModelOpenRouter = async (modelInfo, symbol, prompt, stoc
     avatarColor: modelInfo.avatarColor,
     status: 'error',
     error: lastErrorMsg,
-    latency: `${elapsed}s`,
+    latency: `${ elapsed } s`,
     canRetryAlt: true
   };
 };
