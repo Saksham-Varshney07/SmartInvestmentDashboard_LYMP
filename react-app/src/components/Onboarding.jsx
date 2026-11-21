@@ -35,11 +35,12 @@ export default function Onboarding() {
   }, [currentUser]);
 
   const handleStartTour = () => {
+    localStorage.setItem('has_seen_onboarding_tour', 'true');
     setShowWelcome(false);
     
     setTimeout(() => {
       const tour = new Shepherd.Tour({
-        useModalOverlay: true,
+        useModalOverlay: false,
         defaultStepOptions: {
           classes: isDarkMode ? 'shepherd-dark' : 'shepherd-light',
           scrollTo: true,
@@ -48,6 +49,13 @@ export default function Onboarding() {
           }
         }
       });
+
+      const cleanup = () => {
+        localStorage.setItem('has_seen_onboarding_tour', 'true');
+        document.querySelectorAll('.shepherd-element, .shepherd-modal-overlay-container').forEach(el => el.remove());
+      };
+      tour.on('complete', cleanup);
+      tour.on('cancel', cleanup);
       
       const btnBack = {
         text: 'Back',

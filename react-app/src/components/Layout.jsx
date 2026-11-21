@@ -215,6 +215,21 @@ export default function Layout({ children }) {
                    <span className="material-symbols-outlined text-lg">{showPassword ? 'visibility_off' : 'visibility'}</span>
                  </button>
                </div>
+               {!isSignup && (
+                 <div className="flex justify-between items-center mt-1.5 px-0.5">
+                   <span className="text-[11px] text-slate-400 dark:text-slate-500">Demo: saksham / saksham123</span>
+                   <button
+                     type="button"
+                     onClick={() => {
+                       setLoginForm(prev => ({ ...prev, username: 'saksham', password: 'saksham123' }));
+                       setAuthError(null);
+                     }}
+                     className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline cursor-pointer"
+                   >
+                     Auto-fill
+                   </button>
+                 </div>
+               )}
              </div>
 
              {isSignup && (
