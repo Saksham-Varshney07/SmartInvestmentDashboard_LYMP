@@ -199,7 +199,7 @@ export async function searchAutocomplete(q) {
 
   // 1. Check exact or fuzzy alias match
   const matchedAliasSymbol = COMMON_ALIASES[query] || COMMON_ALIASES[stripped];
-  
+
   // 2. Filter dictionary matches
   const matches = STOCK_DICTIONARY.filter(s => {
     const sym = s.symbol.toLowerCase();
@@ -309,602 +309,733 @@ export function getLocalPortfolioState(userId, type = 'real') {
   const storageKey = getUserStorageKey(userId, type);
   let txList = [];
   try {
-    const saved = localStorage.getItem(storageKey);
-    if (saved !== null) {
-      txList = JSON.parse(saved);
-    } else {
-      // ONLY seed default portfolio for the demo account 'saksham' (user_id: 1)
-      const isDemoUser = (userId === 1 || userId === '1' || String(userId).toLowerCase() === 'saksham');
-      if (isDemoUser) {
-        txList = type === 'real' ? [...DEFAULT_REAL_TX] : [...DEFAULT_SANDBOX_TX];
-        localStorage.setItem(storageKey, JSON.stringify(txList));
-      } else {
-        // Any newly created account starts completely clean and empty (0 data)
-        txList = [];
-        localStorage.setItem(storageKey, JSON.stringify([]));
+      let saved = localStorage.getItem(storageKey);
+      // If not found or empty, also check username key
+      if (!saved || saved === '[]') {
+        try {
+          const rawUser = localStorage.getItem('currentUser');
+          if (rawUser) {
+            const userObj = JSON.parse(rawUser);
+            if (userObj.username) {
+              const userKey = getUserStorageKey(userObj.username, type);
+              const altSaved = localStorage.getItem(userKey);
+              if (altSaved && altSaved !== '[]') saved = altSaved;
+            }
+            if ((!saved || saved === '[]') && userObj.user_id) {
+              const uidKey = getUserStorageKey(userObj.user_id, type);
+              const altSaved2 = localStorage.getItem(uidKey);
+              if (altSaved2 && altSaved2 !== '[]') saved = altSaved2;
+            }
+          }
+        } catch (e) { }
       }
-    }
-  } catch (e) {
-    txList = [];
-  }
 
-  // Aggregate holdings
-  const holdingsMap = {};
-  txList.forEach(tx => {
-    const sym = tx.symbol.toUpperCase();
-    if (!holdingsMap[sym]) {
-      const match = STOCK_DICTIONARY.find(s => s.symbol.toUpperCase() === sym) || {
-        price: tx.price_at_purchase,
-        name: sym.replace(/\.(NS|BO)$/i, ''),
-        sector: 'Equities',
-        risk: 'Moderate'
-      };
-      holdingsMap[sym] = {
-        ticker: tx.symbol,
-        name: match?.name || sym.replace(/\.(NS|BO)$/i, ''),
-        shares: 0,
-        total_cost: 0,
-        current_price: match?.price || tx.price_at_purchase,
-        sector: match?.sector || 'Equities',
-        risk_flag: match?.risk || 'Moderate'
-      };
+      if (saved !== null && saved !== undefined && saved !== '[]') {
+        txList = JSON.parse(saved);
+      } else {
+        // ONLY seed default portfolio for the demo account 'saksham' (user_id: 1)
+        const isDemoUser = (userId === 1 || userId === '1' || String(userId).toLowerCase() === 'saksham');
+        if (isDemoUser) {
+          txList = type === 'real' ? [...DEFAULT_REAL_TX] : [...DEFAULT_SANDBOX_TX];
+          localStorage.setItem(storageKey, JSON.stringify(txList));
+        } else {
+          // Any newly created account starts completely clean and empty (0 data)
+          txList = [];
+          localStorage.setItem(storageKey, JSON.stringify([]));
+        }
+      }
+    } catch (e) {
+      txList = [];
     }
 
-    const shares = parseFloat(tx.shares) || 0;
-    const price = parseFloat(tx.price_at_purchase) || 0;
+    // Aggregate holdings
+    const holdingsMap = {};
+    txList.forEach(tx => {
+      const sym = tx.symbol.toUpperCase();
+      if (!holdingsMap[sym]) {
+        const match = STOCK_DICTIONARY.find(s => s.symbol.toUpperCase() === sym) || {
+          price: tx.price_at_purchase,
+          name: sym.replace(/\.(NS|BO)$/i, ''),
+          sector: 'Equities',
+          risk: 'Moderate'
+        };
+        holdingsMap[sym] = {
+          ticker: tx.symbol,
+          name: match?.name || sym.replace(/\.(NS|BO)$/i, ''),
+          shares: 0,
+          total_cost: 0,
+          current_price: match?.price || tx.price_at_purchase,
+          sector: match?.sector || 'Equities',
+          risk_flag: match?.risk || 'Moderate'
+        };
+      }
 
-    if (tx.transaction_type === 'BUY') {
-      holdingsMap[sym].shares += shares;
-      holdingsMap[sym].total_cost += shares * price;
-    } else if (tx.transaction_type === 'SELL') {
-      holdingsMap[sym].shares = Math.max(0, holdingsMap[sym].shares - shares);
-      holdingsMap[sym].total_cost = Math.max(0, holdingsMap[sym].total_cost - shares * price);
-    }
-  });
+      const shares = parseFloat(tx.shares) || 0;
+      const price = parseFloat(tx.price_at_purchase) || 0;
 
-  const assets = Object.values(holdingsMap)
-    .filter(a => a.shares > 0)
-    .map(a => {
-      const avg_cost = a.shares > 0 ? a.total_cost / a.shares : a.current_price;
-      const total_value = a.shares * a.current_price;
-      const total_profit = total_value - a.total_cost;
-      const return_pct = a.total_cost > 0 ? (total_profit / a.total_cost) * 100 : 0;
-      
-      const assetTx = txList.filter(t => t.symbol.toUpperCase() === a.ticker.toUpperCase());
-      const history = assetTx.map(t => ({
-        type: t.transaction_type,
-        shares: parseFloat(t.shares) || 0,
-        price: parseFloat(t.price_at_purchase) || 0,
-        date: t.created_at || new Date().toISOString().split('T')[0]
-      }));
-
-      return {
-        ticker: a.ticker,
-        symbol: a.ticker,
-        name: a.name,
-        shares: a.shares,
-        avg_cost: Number(avg_cost.toFixed(2)),
-        invested: Number(a.total_cost.toFixed(2)),
-        current_price: Number(a.current_price.toFixed(2)),
-        live_price: Number(a.current_price.toFixed(2)),
-        total_value: Number(total_value.toFixed(2)),
-        current_value: Number(total_value.toFixed(2)),
-        total_profit: Number(total_profit.toFixed(2)),
-        profit: Number(total_profit.toFixed(2)),
-        return_pct: Number(return_pct.toFixed(2)),
-        profit_pct: Number(return_pct.toFixed(2)),
-        sector: a.sector,
-        risk_flag: a.risk_flag,
-        history
-      };
+      if (tx.transaction_type === 'BUY') {
+        holdingsMap[sym].shares += shares;
+        holdingsMap[sym].total_cost += shares * price;
+      } else if (tx.transaction_type === 'SELL') {
+        holdingsMap[sym].shares = Math.max(0, holdingsMap[sym].shares - shares);
+        holdingsMap[sym].total_cost = Math.max(0, holdingsMap[sym].total_cost - shares * price);
+      }
     });
 
-  const total_investment = assets.reduce((sum, a) => sum + (a.shares * a.avg_cost), 0);
-  const portfolio_value = assets.reduce((sum, a) => sum + a.total_value, 0);
-  const total_profit = portfolio_value - total_investment;
-  const total_profit_pct = total_investment > 0 ? (total_profit / total_investment) * 100 : 0;
+    const assets = Object.values(holdingsMap)
+      .filter(a => a.shares > 0)
+      .map(a => {
+        const avg_cost = a.shares > 0 ? a.total_cost / a.shares : a.current_price;
+        const total_value = a.shares * a.current_price;
+        const total_profit = total_value - a.total_cost;
+        const return_pct = a.total_cost > 0 ? (total_profit / a.total_cost) * 100 : 0;
 
-  // Calculate XIRR from cashflows
-  const cashFlows = txList.map(tx => ({
-    date: tx.created_at || new Date().toISOString(),
-    amount: tx.transaction_type === 'BUY' ? -(tx.shares * tx.price_at_purchase) : (tx.shares * tx.price_at_purchase)
-  }));
-  if (portfolio_value > 0) {
-    cashFlows.push({ date: new Date().toISOString(), amount: portfolio_value });
+        const assetTx = txList.filter(t => t.symbol.toUpperCase() === a.ticker.toUpperCase());
+        const history = assetTx.map(t => ({
+          type: t.transaction_type,
+          shares: parseFloat(t.shares) || 0,
+          price: parseFloat(t.price_at_purchase) || 0,
+          date: t.created_at || new Date().toISOString().split('T')[0]
+        }));
+
+        return {
+          ticker: a.ticker,
+          symbol: a.ticker,
+          name: a.name,
+          shares: a.shares,
+          avg_cost: Number(avg_cost.toFixed(2)),
+          invested: Number(a.total_cost.toFixed(2)),
+          current_price: Number(a.current_price.toFixed(2)),
+          live_price: Number(a.current_price.toFixed(2)),
+          total_value: Number(total_value.toFixed(2)),
+          current_value: Number(total_value.toFixed(2)),
+          total_profit: Number(total_profit.toFixed(2)),
+          profit: Number(total_profit.toFixed(2)),
+          return_pct: Number(return_pct.toFixed(2)),
+          profit_pct: Number(return_pct.toFixed(2)),
+          sector: a.sector,
+          risk_flag: a.risk_flag,
+          history
+        };
+      });
+
+    const total_investment = assets.reduce((sum, a) => sum + (a.shares * a.avg_cost), 0);
+    const portfolio_value = assets.reduce((sum, a) => sum + a.total_value, 0);
+    const total_profit = portfolio_value - total_investment;
+    const total_profit_pct = total_investment > 0 ? (total_profit / total_investment) * 100 : 0;
+
+    // Calculate XIRR from cashflows
+    const cashFlows = txList.map(tx => ({
+      date: tx.created_at || new Date().toISOString(),
+      amount: tx.transaction_type === 'BUY' ? -(tx.shares * tx.price_at_purchase) : (tx.shares * tx.price_at_purchase)
+    }));
+    if (portfolio_value > 0) {
+      cashFlows.push({ date: new Date().toISOString(), amount: portfolio_value });
+    }
+    const xirrVal = calculateClientXirr(cashFlows);
+
+    assets.forEach(a => {
+      a.allocation_pct = portfolio_value > 0 ? Number(((a.total_value / portfolio_value) * 100).toFixed(1)) : 0;
+    });
+
+    const recent_activity = txList.slice().reverse().map(tx => ({
+      id: tx.id,
+      ticker: tx.symbol,
+      symbol: tx.symbol,
+      type: tx.transaction_type,
+      transaction_type: tx.transaction_type,
+      shares: tx.shares,
+      price: tx.price_at_purchase,
+      price_at_purchase: tx.price_at_purchase,
+      total: tx.shares * tx.price_at_purchase,
+      date: tx.created_at || 'Recently',
+      created_at: tx.created_at || 'Recently'
+    }));
+
+    return {
+      status: 'success',
+      portfolio_type: type,
+      summary: {
+        total_investment: Number(total_investment.toFixed(2)),
+        portfolio_value: Number(portfolio_value.toFixed(2)),
+        total_profit: Number(total_profit.toFixed(2)),
+        total_profit_pct: Number(total_profit_pct.toFixed(2)),
+        xirr: Number(xirrVal.toFixed(2))
+      },
+      assets,
+      recent_activity
+    };
   }
-  const xirrVal = calculateClientXirr(cashFlows);
-
-  assets.forEach(a => {
-    a.allocation_pct = portfolio_value > 0 ? Number(((a.total_value / portfolio_value) * 100).toFixed(1)) : 0;
-  });
-
-  const recent_activity = txList.slice().reverse().map(tx => ({
-    id: tx.id,
-    ticker: tx.symbol,
-    symbol: tx.symbol,
-    type: tx.transaction_type,
-    transaction_type: tx.transaction_type,
-    shares: tx.shares,
-    price: tx.price_at_purchase,
-    price_at_purchase: tx.price_at_purchase,
-    total: tx.shares * tx.price_at_purchase,
-    date: tx.created_at || 'Recently',
-    created_at: tx.created_at || 'Recently'
-  }));
-
-  return {
-    status: 'success',
-    portfolio_type: type,
-    summary: {
-      total_investment: Number(total_investment.toFixed(2)),
-      portfolio_value: Number(portfolio_value.toFixed(2)),
-      total_profit: Number(total_profit.toFixed(2)),
-      total_profit_pct: Number(total_profit_pct.toFixed(2)),
-      xirr: Number(xirrVal.toFixed(2))
-    },
-    assets,
-    recent_activity
-  };
-}
 
 export async function fetchPortfolio(userId, type = 'real') {
-  if (HAS_ACCESSIBLE_BACKEND) {
-    try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/${userId}?type=${type}`, {}, 3500);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'success' && data.summary) {
-          return data;
-        }
-      }
-    } catch (e) {
-      // Offline / Mobile / Vercel
-    }
-  }
-  return getLocalPortfolioState(userId, type);
-}
-
-export async function savePortfolioTransaction(txData, type = 'real') {
-  const userId = txData.user_id || 'guest';
-  if (HAS_ACCESSIBLE_BACKEND) {
-    try {
-      const url = txData.id 
-        ? `${API_BASE}/api/portfolio/transaction/${txData.id}`
-        : `${API_BASE}/api/portfolio/transaction`;
-      const res = await fetchWithTimeout(url, {
-        method: txData.id ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...txData, portfolio_type: type })
-      }, 3500);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'success') {
-          // Keep local storage in sync
-          const storageKey = getUserStorageKey(userId, type);
-          let list = [];
-          try { list = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch (e) { list = []; }
-          if (txData.id) {
-            list = list.map(item => item.id === txData.id ? { ...item, ...txData } : item);
-          } else {
-            list.push({ ...txData, id: Date.now(), created_at: new Date().toISOString().split('T')[0] });
+    if (HAS_ACCESSIBLE_BACKEND) {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/${userId}?type=${type}`, {}, 3500);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'success' && data.summary) {
+            // If remote backend returned actual assets, return data
+            if (data.assets && data.assets.length > 0) {
+              return data;
+            }
+            // If remote returned 0 assets, check if client has local transactions (e.g. newly applied blueprint)
+            const localData = getLocalPortfolioState(userId, type);
+            if (localData && localData.assets && localData.assets.length > 0) {
+              return localData;
+            }
+            return data;
           }
-          localStorage.setItem(storageKey, JSON.stringify(list));
-          return data;
         }
+      } catch (e) {
+        // Offline / Mobile / Vercel
       }
-    } catch (e) {
-      // Fall back to localStorage update
     }
+    return getLocalPortfolioState(userId, type);
   }
 
-  const storageKey = getUserStorageKey(userId, type);
-  let list = [];
-  try {
-    list = JSON.parse(localStorage.getItem(storageKey) || '[]');
-  } catch (e) {
-    list = [];
-  }
-
-  if (txData.id) {
-    list = list.map(item => item.id === txData.id ? { ...item, ...txData } : item);
-  } else {
-    const newTx = {
-      ...txData,
-      id: Date.now(),
-      created_at: new Date().toISOString().split('T')[0]
-    };
-    list.push(newTx);
-  }
-  localStorage.setItem(storageKey, JSON.stringify(list));
-  return { status: 'success' };
-}
-
-export async function deletePortfolioTransaction(id, type = 'real', userId) {
-  if (HAS_ACCESSIBLE_BACKEND) {
-    try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/transaction/${id}?user_id=${userId}&type=${type}`, { method: 'DELETE' }, 3500);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'success') {
-          const storageKey = getUserStorageKey(userId, type);
-          try {
-            let list = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            list = list.filter(item => item.id !== id);
+  export async function savePortfolioTransaction(txData, type = 'real') {
+    const userId = txData.user_id || 'guest';
+    if (HAS_ACCESSIBLE_BACKEND) {
+      try {
+        const url = txData.id
+          ? `${API_BASE}/api/portfolio/transaction/${txData.id}`
+          : `${API_BASE}/api/portfolio/transaction`;
+        const res = await fetchWithTimeout(url, {
+          method: txData.id ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...txData, portfolio_type: type })
+        }, 3500);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'success') {
+            // Keep local storage in sync
+            const storageKey = getUserStorageKey(userId, type);
+            let list = [];
+            try { list = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch (e) { list = []; }
+            if (txData.id) {
+              list = list.map(item => item.id === txData.id ? { ...item, ...txData } : item);
+            } else {
+              list.push({ ...txData, id: Date.now(), created_at: new Date().toISOString().split('T')[0] });
+            }
             localStorage.setItem(storageKey, JSON.stringify(list));
-          } catch (e) {}
-          return data;
+            return data;
+          }
         }
+      } catch (e) {
+        // Fall back to localStorage update
       }
-    } catch (e) {
-      // Fall back to localStorage removal
     }
-  }
 
-  const storageKey = getUserStorageKey(userId, type);
-  try {
-    let list = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    list = list.filter(item => item.id !== id);
+    const storageKey = getUserStorageKey(userId, type);
+    let list = [];
+    try {
+      list = JSON.parse(localStorage.getItem(storageKey) || '[]');
+    } catch (e) {
+      list = [];
+    }
+
+    if (txData.id) {
+      list = list.map(item => item.id === txData.id ? { ...item, ...txData } : item);
+    } else {
+      const newTx = {
+        ...txData,
+        id: Date.now(),
+        created_at: new Date().toISOString().split('T')[0]
+      };
+      list.push(newTx);
+    }
     localStorage.setItem(storageKey, JSON.stringify(list));
-  } catch (e) {}
-  return { status: 'success' };
-}
+    return { status: 'success' };
+  }
 
-// -------------------------------------------------------------
-// 4. STOCK ANALYSIS & MARKET TRENDS
-// -------------------------------------------------------------
-export async function getStockAnalysis(symbol) {
-  if (HAS_ACCESSIBLE_BACKEND) {
+  export async function deletePortfolioTransaction(id, type = 'real', userId) {
+    if (HAS_ACCESSIBLE_BACKEND) {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/transaction/${id}?user_id=${userId}&type=${type}`, { method: 'DELETE' }, 3500);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'success') {
+            const storageKey = getUserStorageKey(userId, type);
+            try {
+              let list = JSON.parse(localStorage.getItem(storageKey) || '[]');
+              list = list.filter(item => item.id !== id);
+              localStorage.setItem(storageKey, JSON.stringify(list));
+            } catch (e) { }
+            return data;
+          }
+        }
+      } catch (e) {
+        // Fall back to localStorage removal
+      }
+    }
+
+    const storageKey = getUserStorageKey(userId, type);
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/analyze/${encodeURIComponent(symbol)}`, {}, 3000);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'success' && data.analysis) {
-          return data;
+      let list = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      list = list.filter(item => item.id !== id);
+      localStorage.setItem(storageKey, JSON.stringify(list));
+    } catch (e) { }
+    return { status: 'success' };
+  }
+
+  // -------------------------------------------------------------
+  // 4. STOCK ANALYSIS & MARKET TRENDS
+  // -------------------------------------------------------------
+  export async function getStockAnalysis(symbol) {
+    if (HAS_ACCESSIBLE_BACKEND) {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/analyze/${encodeURIComponent(symbol)}`, {}, 3000);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'success' && data.analysis) {
+            return data;
+          }
+        }
+      } catch (e) {
+        console.warn(`Backend analyze for ${symbol} unreachable, generating rich fallback data.`);
+      }
+    }
+
+    const rawClean = (symbol || 'STOCK').toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const aliasResolved = COMMON_ALIASES[symbol?.toLowerCase()] || COMMON_ALIASES[rawClean.toLowerCase()];
+    const clean = (aliasResolved || symbol || 'STOCK').toUpperCase().replace(/\.(NS|BO)$/i, '');
+
+    const match = STOCK_DICTIONARY.find(s =>
+      s.symbol.toUpperCase().startsWith(clean) ||
+      s.symbol.toUpperCase() === `${clean}.NS` ||
+      s.name.toUpperCase().includes(clean)
+    ) || {
+      name: clean.length <= 5 ? `${clean} Ltd` : clean,
+      price: clean.includes('STEEL') ? 188.0 : (clean.includes('POWER') ? 395.5 : 850.0),
+      change: 1.15,
+      pe: 24.0,
+      high_52w: clean.includes('STEEL') ? 224.4 : 1200.0,
+      low_52w: clean.includes('STEEL') ? 160.06 : 680.0,
+      risk: 'Moderate',
+      sector: clean.includes('STEEL') ? 'Metals & Mining' : (clean.includes('BANK') ? 'Financial Services' : 'Equities')
+    };
+
+    const history = [];
+    const now = new Date();
+    let current = match.price * 0.92;
+    for (let i = 45; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const shift = (Math.sin(i * 0.4) * 0.015 + (Math.random() - 0.48) * 0.012) * match.price;
+      current = Math.max(10, current + shift);
+      history.push({
+        date: d.toISOString().split('T')[0],
+        open: Number((current - 1.8).toFixed(2)),
+        high: Number((current + 3.4).toFixed(2)),
+        low: Number((current - 2.5).toFixed(2)),
+        close: Number(current.toFixed(2)),
+        volume: Math.floor(800000 + Math.random() * 1200000)
+      });
+    }
+
+    const isUSD = ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA', 'AMZN', 'META', 'NFLX', 'AMD', 'INTC', 'BTC-USD', 'ETH-USD', 'SOL-USD', 'GC=F', 'SI=F'].includes(clean);
+
+    return {
+      status: 'success',
+      resolved_symbol: symbol.endsWith('.NS') || isUSD ? symbol : `${symbol}.NS`,
+      name: match.name,
+      analysis: {
+        ticker: symbol,
+        risk: match.risk,
+        risk_level: match.risk,
+        stability: match.risk === 'Low' ? 'Stable' : 'Moderate',
+        trend: match.change >= 0 ? 'Uptrend' : 'Consolidation',
+        returns: match.change,
+        yearly_return: Number((match.change * 14).toFixed(2)),
+        volatility: match.risk === 'Low' ? 0.14 : (match.risk === 'High' ? 0.28 : 0.19),
+        average_price: match.price,
+        latest_price: match.price,
+        anomaly_ratio: 0.03,
+        stars: match.risk === 'Low' ? 5 : (match.risk === 'High' ? 3 : 4),
+        xgboost_prob: match.risk === 'High' ? 0.65 : 0.28,
+        xgboost_risk: match.risk === 'High' ? 'Elevated' : 'Controlled'
+      },
+      fundamentals: {
+        company_name: match.name,
+        currency: isUSD ? 'USD' : 'INR',
+        current_price: match.price,
+        day_change: match.change,
+        pe_ratio: match.pe,
+        market_cap: match.price * 1250000000,
+        sector: match.sector,
+        high_52w: match.high_52w,
+        low_52w: match.low_52w
+      },
+      history
+    };
+  }
+
+  export async function getMarketTrend(symbol, timeframe = '1mo') {
+    if (HAS_ACCESSIBLE_BACKEND) {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/market-trend?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`, {}, 2500);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.trend && Array.isArray(data.trend)) return data;
+        }
+      } catch (e) { }
+    }
+
+    const rawClean = (symbol || 'STOCK').toUpperCase().replace(/\.(NS|BO)$/i, '');
+    const aliasResolved = COMMON_ALIASES[symbol?.toLowerCase()] || COMMON_ALIASES[rawClean.toLowerCase()];
+    const clean = (aliasResolved || symbol || 'STOCK').toUpperCase().replace(/\.(NS|BO)$/i, '');
+
+    const match = STOCK_DICTIONARY.find(s =>
+      s.symbol.toUpperCase().startsWith(clean) ||
+      s.symbol.toUpperCase() === `${clean}.NS` ||
+      s.name.toUpperCase().includes(clean)
+    ) || { price: clean.includes('STEEL') ? 154.2 : 850.0 };
+
+    const base = match.price;
+    const pointsCount = timeframe === '1y' ? 52 : (timeframe === '6mo' ? 26 : 15);
+    const trend = [];
+    const points = [];
+    const now = new Date();
+
+    for (let i = pointsCount; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (i * 2));
+      const val = Number((base * (0.95 + Math.sin(i * 0.4) * 0.05 + (Math.random() - 0.5) * 0.02)).toFixed(2));
+      trend.push(val);
+      points.push({
+        date: d.toISOString().split('T')[0],
+        close: val,
+        high: Number((val * 1.01).toFixed(2)),
+        low: Number((val * 0.99).toFixed(2))
+      });
+    }
+
+    return { status: 'success', symbol, trend, points };
+  }
+
+  // -------------------------------------------------------------
+  // 5. PORTFOLIO RISK & BLUEPRINT OPTIMIZER
+  // -------------------------------------------------------------
+  export async function calculatePortfolioRisk(payload) {
+    if (HAS_ACCESSIBLE_BACKEND) {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/portfolio-risk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }, 5000);
+        if (res.ok) {
+          const data = await res.json();
+          const a = data.analysis || data;
+          if (a && (a.correlation_matrix || a.portfolios || a.the_defender)) {
+            const safe = a.portfolios?.safe || a.the_defender;
+            const balanced = a.portfolios?.balanced || a.the_balanced;
+            const aggressive = a.portfolios?.aggressive || a.the_aggressor;
+            const warnings = a.ai_warnings || a.warnings || [];
+            return {
+              ...a,
+              valid_count: a.valid_count || payload.stocks?.length || 5,
+              has_high_correlation: a.has_high_correlation ?? false,
+              ai_warnings: warnings,
+              warnings: warnings,
+              the_defender: safe,
+              the_balanced: balanced,
+              the_aggressor: aggressive,
+              portfolios: {
+                safe,
+                balanced,
+                aggressive
+              }
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('Backend portfolio-risk unreachable, executing client-side risk engine.', e);
+      }
+    }
+
+    const stocks = payload.stocks || ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS'];
+    const budget = payload.budget || 100000;
+    const num = stocks.length;
+
+    const correlation_matrix = stocks.map((s1, i) => ({
+      name: s1,
+      data: stocks.map((s2, j) => {
+        let val = 1.0;
+        if (i !== j) {
+          val = Number((0.25 + (Math.sin(i * 3 + j * 7) * 0.25)).toFixed(2));
+        }
+        return { x: s2, y: val };
+      })
+    }));
+
+    const colors = ["#2563eb", "#059669", "#d97706", "#7c3aed", "#e11d48", "#0891b2"];
+
+    const defenderWeights = stocks.map(() => 1 / num);
+    const balancedWeights = stocks.map((_, i) => (i === 0 ? 0.35 : (0.65 / Math.max(1, num - 1))));
+    const aggressorWeights = stocks.map((_, i) => (i === 0 ? 0.60 : (i === 1 ? 0.40 : 0.0)));
+
+    const the_defender = {
+      name: "The Defender (Low Risk)",
+      description: "MPT Global Minimum Variance",
+      projected_return_pa: 11.8,
+      allocations: stocks.map((s, idx) => ({
+        name: s, ticker: s,
+        percentage: Number((defenderWeights[idx] * 100).toFixed(1)),
+        amount: Number((budget * defenderWeights[idx]).toFixed(2)),
+        color: colors[idx % colors.length]
+      }))
+    };
+
+    const the_balanced = {
+      name: "The Balanced (AI Optimum)",
+      description: "MPT Maximum Sharpe Ratio",
+      projected_return_pa: 16.4,
+      allocations: stocks.map((s, idx) => ({
+        name: s, ticker: s,
+        percentage: Number((balancedWeights[idx] * 100).toFixed(1)),
+        amount: Number((budget * balancedWeights[idx]).toFixed(2)),
+        color: colors[idx % colors.length]
+      }))
+    };
+
+    const the_aggressor = {
+      name: "The Aggressor (High Risk)",
+      description: "Momentum & High-Yield Driven",
+      projected_return_pa: 22.5,
+      allocations: stocks.map((s, idx) => ({
+        name: s, ticker: s,
+        percentage: Number((aggressorWeights[idx] * 100).toFixed(1)),
+        amount: Number((budget * aggressorWeights[idx]).toFixed(2)),
+        color: colors[idx % colors.length]
+      }))
+    };
+
+    const warnings = [];
+    if (num < 3) {
+      warnings.push("High Concentration Warning: Your list has fewer than 3 stocks. Consider diversifying across multiple sectors.");
+    } else {
+      warnings.push("Healthy Diversification: Your selected stocks demonstrate balanced risk-adjusted covariance.");
+    }
+
+    const sector_breakdown = [
+      { name: 'Technology', percentage: 40 },
+      { name: 'Energy', percentage: 35 },
+      { name: 'Financials', percentage: 25 }
+    ];
+
+    const simulation_data = {
+      categories: ['Month 1', 'Month 3', 'Month 6', 'Month 9', 'Month 12'],
+      user_portfolio: [100000, 103000, 107000, 110000, 114000],
+      ai_balanced: [100000, 105000, 111000, 115000, 122000]
+    };
+
+    return {
+      valid_count: num,
+      has_high_correlation: false,
+      ai_warnings: warnings,
+      warnings: warnings,
+      user_profile_matched: payload.risk_profile || 'Balanced',
+      correlation_matrix,
+      sector_breakdown,
+      the_defender,
+      the_balanced,
+      the_aggressor,
+      portfolios: {
+        safe: the_defender,
+        balanced: the_balanced,
+        aggressive: the_aggressor
+      },
+      simulation_data
+    };
+  }
+
+  export async function applyBlueprint(userId, allocations) {
+    const newTxList = (allocations || []).map((alloc, idx) => {
+      const sym = (alloc.ticker || alloc.symbol || alloc.name || '').toUpperCase();
+      const match = STOCK_DICTIONARY.find(s => s.symbol.toUpperCase() === sym);
+      const price = match?.price || 1000;
+      const amount = parseFloat(alloc.amount) || 25000;
+      const shares = Number((amount / price).toFixed(2));
+      return {
+        id: Date.now() + idx,
+        symbol: sym,
+        transaction_type: 'BUY',
+        shares,
+        price_at_purchase: price,
+        created_at: new Date().toISOString().split('T')[0]
+      };
+    });
+
+    // Always immediately save to localStorage across all user keys so client is guaranteed to render
+    const uid = String(userId || 'guest').toLowerCase();
+    localStorage.setItem(getUserStorageKey(uid, 'sandbox'), JSON.stringify(newTxList));
+    localStorage.setItem(getUserStorageKey(userId, 'sandbox'), JSON.stringify(newTxList));
+
+    let usernameVal = '';
+    try {
+      const rawUser = localStorage.getItem('currentUser');
+      if (rawUser) {
+        const userObj = JSON.parse(rawUser);
+        if (userObj.username) {
+          usernameVal = userObj.username;
+          localStorage.setItem(getUserStorageKey(userObj.username, 'sandbox'), JSON.stringify(newTxList));
+        }
+        if (userObj.user_id) {
+          localStorage.setItem(getUserStorageKey(userObj.user_id, 'sandbox'), JSON.stringify(newTxList));
         }
       }
-    } catch (e) {
-      console.warn(`Backend analyze for ${symbol} unreachable, generating rich fallback data.`);
-    }
-  }
+    } catch (e) { }
 
-  const rawClean = (symbol || 'STOCK').toUpperCase().replace(/\.(NS|BO)$/i, '');
-  const aliasResolved = COMMON_ALIASES[symbol?.toLowerCase()] || COMMON_ALIASES[rawClean.toLowerCase()];
-  const clean = (aliasResolved || symbol || 'STOCK').toUpperCase().replace(/\.(NS|BO)$/i, '');
-
-  const match = STOCK_DICTIONARY.find(s => 
-    s.symbol.toUpperCase().startsWith(clean) || 
-    s.symbol.toUpperCase() === `${clean}.NS` || 
-    s.name.toUpperCase().includes(clean)
-  ) || {
-    name: clean.length <= 5 ? `${clean} Ltd` : clean,
-    price: clean.includes('STEEL') ? 188.0 : (clean.includes('POWER') ? 395.5 : 850.0),
-    change: 1.15,
-    pe: 24.0,
-    high_52w: clean.includes('STEEL') ? 224.4 : 1200.0,
-    low_52w: clean.includes('STEEL') ? 160.06 : 680.0,
-    risk: 'Moderate',
-    sector: clean.includes('STEEL') ? 'Metals & Mining' : (clean.includes('BANK') ? 'Financial Services' : 'Equities')
-  };
-
-  const history = [];
-  const now = new Date();
-  let current = match.price * 0.92;
-  for (let i = 45; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const shift = (Math.sin(i * 0.4) * 0.015 + (Math.random() - 0.48) * 0.012) * match.price;
-    current = Math.max(10, current + shift);
-    history.push({
-      date: d.toISOString().split('T')[0],
-      open: Number((current - 1.8).toFixed(2)),
-      high: Number((current + 3.4).toFixed(2)),
-      low: Number((current - 2.5).toFixed(2)),
-      close: Number(current.toFixed(2)),
-      volume: Math.floor(800000 + Math.random() * 1200000)
-    });
-  }
-
-  const isUSD = ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA', 'AMZN', 'META', 'NFLX', 'AMD', 'INTC', 'BTC-USD', 'ETH-USD', 'SOL-USD', 'GC=F', 'SI=F'].includes(clean);
-
-  return {
-    status: 'success',
-    resolved_symbol: symbol.endsWith('.NS') || isUSD ? symbol : `${symbol}.NS`,
-    name: match.name,
-    analysis: {
-      ticker: symbol,
-      risk: match.risk,
-      risk_level: match.risk,
-      stability: match.risk === 'Low' ? 'Stable' : 'Moderate',
-      trend: match.change >= 0 ? 'Uptrend' : 'Consolidation',
-      returns: match.change,
-      yearly_return: Number((match.change * 14).toFixed(2)),
-      volatility: match.risk === 'Low' ? 0.14 : (match.risk === 'High' ? 0.28 : 0.19),
-      average_price: match.price,
-      latest_price: match.price,
-      anomaly_ratio: 0.03,
-      stars: match.risk === 'Low' ? 5 : (match.risk === 'High' ? 3 : 4),
-      xgboost_prob: match.risk === 'High' ? 0.65 : 0.28,
-      xgboost_risk: match.risk === 'High' ? 'Elevated' : 'Controlled'
-    },
-    fundamentals: {
-      company_name: match.name,
-      currency: isUSD ? 'USD' : 'INR',
-      current_price: match.price,
-      day_change: match.change,
-      pe_ratio: match.pe,
-      market_cap: match.price * 1250000000,
-      sector: match.sector,
-      high_52w: match.high_52w,
-      low_52w: match.low_52w
-    },
-    history
-  };
-}
-
-export async function getMarketTrend(symbol, timeframe = '1mo') {
-  if (HAS_ACCESSIBLE_BACKEND) {
+    // Sync to remote serverless backend / FastAPI
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/market-trend?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`, {}, 2500);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.trend && Array.isArray(data.trend)) return data;
-      }
-    } catch (e) {}
-  }
+      const payload = {
+        user_id: userId,
+        username: usernameVal,
+        portfolio_type: 'sandbox',
+        action: 'apply_blueprint',
+        allocations
+      };
 
-  const rawClean = (symbol || 'STOCK').toUpperCase().replace(/\.(NS|BO)$/i, '');
-  const aliasResolved = COMMON_ALIASES[symbol?.toLowerCase()] || COMMON_ALIASES[rawClean.toLowerCase()];
-  const clean = (aliasResolved || symbol || 'STOCK').toUpperCase().replace(/\.(NS|BO)$/i, '');
-
-  const match = STOCK_DICTIONARY.find(s => 
-    s.symbol.toUpperCase().startsWith(clean) || 
-    s.symbol.toUpperCase() === `${clean}.NS` || 
-    s.name.toUpperCase().includes(clean)
-  ) || { price: clean.includes('STEEL') ? 154.2 : 850.0 };
-
-  const base = match.price;
-  const pointsCount = timeframe === '1y' ? 52 : (timeframe === '6mo' ? 26 : 15);
-  const trend = [];
-  const points = [];
-  const now = new Date();
-
-  for (let i = pointsCount; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - (i * 2));
-    const val = Number((base * (0.95 + Math.sin(i * 0.4) * 0.05 + (Math.random() - 0.5) * 0.02)).toFixed(2));
-    trend.push(val);
-    points.push({
-      date: d.toISOString().split('T')[0],
-      close: val,
-      high: Number((val * 1.01).toFixed(2)),
-      low: Number((val * 0.99).toFixed(2))
-    });
-  }
-
-  return { status: 'success', symbol, trend, points };
-}
-
-// -------------------------------------------------------------
-// 5. PORTFOLIO RISK & BLUEPRINT OPTIMIZER
-// -------------------------------------------------------------
-export async function calculatePortfolioRisk(payload) {
-  if (HAS_ACCESSIBLE_BACKEND) {
-    try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/portfolio-risk`, {
+      // Call Vercel serverless query endpoint
+      await fetchWithTimeout(`${API_BASE}/api/portfolio?user_id=${userId}&type=sandbox&action=apply_blueprint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      }, 5000);
-      if (res.ok) {
-        const data = await res.json();
-        const a = data.analysis || data;
-        if (a && (a.correlation_matrix || a.portfolios || a.the_defender)) {
-          const safe = a.portfolios?.safe || a.the_defender;
-          const balanced = a.portfolios?.balanced || a.the_balanced;
-          const aggressive = a.portfolios?.aggressive || a.the_aggressor;
-          const warnings = a.ai_warnings || a.warnings || [];
-          return {
-            ...a,
-            valid_count: a.valid_count || payload.stocks?.length || 5,
-            has_high_correlation: a.has_high_correlation ?? false,
-            ai_warnings: warnings,
-            warnings: warnings,
-            the_defender: safe,
-            the_balanced: balanced,
-            the_aggressor: aggressive,
-            portfolios: {
-              safe,
-              balanced,
-              aggressive
-            }
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('Backend portfolio-risk unreachable, executing client-side risk engine.', e);
+      }, 3000).catch(() => { });
+
+      // Also call rewritten endpoint
+      await fetchWithTimeout(`${API_BASE}/api/portfolio/${userId}/apply_blueprint?type=sandbox`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }, 3000).catch(() => { });
+    } catch (e) { }
+
+    return { status: 'success' };
+  }
+
+  // -------------------------------------------------------------
+  // 6. RESILIENT AUTH & STRICT LOGIN SERVICE
+  // -------------------------------------------------------------
+  const DEFAULT_ACCOUNTS = [
+    {
+      user_id: 1,
+      portfolio_id: 1,
+      username: 'saksham',
+      password: 'saksham123',
+      full_name: 'Saksham Varshney',
+      risk_profile: 'Balanced',
+      investment_horizon: 'Medium-term'
     }
-  }
-
-  const stocks = payload.stocks || ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS'];
-  const budget = payload.budget || 100000;
-  const num = stocks.length;
-
-  const correlation_matrix = stocks.map((s1, i) => ({
-    name: s1,
-    data: stocks.map((s2, j) => {
-      let val = 1.0;
-      if (i !== j) {
-        val = Number((0.25 + (Math.sin(i * 3 + j * 7) * 0.25)).toFixed(2));
-      }
-      return { x: s2, y: val };
-    })
-  }));
-
-  const colors = ["#2563eb", "#059669", "#d97706", "#7c3aed", "#e11d48", "#0891b2"];
-  
-  const defenderWeights = stocks.map(() => 1 / num);
-  const balancedWeights = stocks.map((_, i) => (i === 0 ? 0.35 : (0.65 / Math.max(1, num - 1))));
-  const aggressorWeights = stocks.map((_, i) => (i === 0 ? 0.60 : (i === 1 ? 0.40 : 0.0)));
-
-  const the_defender = {
-    name: "The Defender (Low Risk)",
-    description: "MPT Global Minimum Variance",
-    projected_return_pa: 11.8,
-    allocations: stocks.map((s, idx) => ({
-      name: s, ticker: s,
-      percentage: Number((defenderWeights[idx] * 100).toFixed(1)),
-      amount: Number((budget * defenderWeights[idx]).toFixed(2)),
-      color: colors[idx % colors.length]
-    }))
-  };
-
-  const the_balanced = {
-    name: "The Balanced (AI Optimum)",
-    description: "MPT Maximum Sharpe Ratio",
-    projected_return_pa: 16.4,
-    allocations: stocks.map((s, idx) => ({
-      name: s, ticker: s,
-      percentage: Number((balancedWeights[idx] * 100).toFixed(1)),
-      amount: Number((budget * balancedWeights[idx]).toFixed(2)),
-      color: colors[idx % colors.length]
-    }))
-  };
-
-  const the_aggressor = {
-    name: "The Aggressor (High Risk)",
-    description: "Momentum & High-Yield Driven",
-    projected_return_pa: 22.5,
-    allocations: stocks.map((s, idx) => ({
-      name: s, ticker: s,
-      percentage: Number((aggressorWeights[idx] * 100).toFixed(1)),
-      amount: Number((budget * aggressorWeights[idx]).toFixed(2)),
-      color: colors[idx % colors.length]
-    }))
-  };
-
-  const warnings = [];
-  if (num < 3) {
-    warnings.push("High Concentration Warning: Your list has fewer than 3 stocks. Consider diversifying across multiple sectors.");
-  } else {
-    warnings.push("Healthy Diversification: Your selected stocks demonstrate balanced risk-adjusted covariance.");
-  }
-
-  const sector_breakdown = [
-    { name: 'Technology', percentage: 40 },
-    { name: 'Energy', percentage: 35 },
-    { name: 'Financials', percentage: 25 }
   ];
 
-  const simulation_data = {
-    categories: ['Month 1', 'Month 3', 'Month 6', 'Month 9', 'Month 12'],
-    user_portfolio: [100000, 103000, 107000, 110000, 114000],
-    ai_balanced: [100000, 105000, 111000, 115000, 122000]
-  };
+  export async function loginUser(loginForm, isSignup = false) {
+    const username = (loginForm.username || '').trim();
+    const password = (loginForm.password || '').trim();
 
-  return {
-    valid_count: num,
-    has_high_correlation: false,
-    ai_warnings: warnings,
-    warnings: warnings,
-    user_profile_matched: payload.risk_profile || 'Balanced',
-    correlation_matrix,
-    sector_breakdown,
-    the_defender,
-    the_balanced,
-    the_aggressor,
-    portfolios: {
-      safe: the_defender,
-      balanced: the_balanced,
-      aggressive: the_aggressor
-    },
-    simulation_data
-  };
-}
+    if (!username) {
+      throw new Error('Please enter a username.');
+    }
+    if (!password) {
+      throw new Error('Please enter your password.');
+    }
 
-export async function applyBlueprint(userId, allocations) {
-  try {
-    const res = await fetchWithTimeout(`${API_BASE}/api/portfolio/${userId}/apply_blueprint?type=sandbox`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ allocations })
-    }, 2500);
-    if (res.ok) return { status: 'success' };
-  } catch (e) {}
-
-  const storageKey = getUserStorageKey(userId, 'sandbox');
-  const newTxList = (allocations || []).map((alloc, idx) => {
-    const match = STOCK_DICTIONARY.find(s => s.symbol.toUpperCase() === (alloc.ticker || alloc.name).toUpperCase());
-    const price = match?.price || 1000;
-    const amount = alloc.amount || 25000;
-    const shares = Number((amount / price).toFixed(2));
-    return {
-      id: Date.now() + idx,
-      symbol: alloc.ticker || alloc.name,
-      transaction_type: 'BUY',
-      shares,
-      price_at_purchase: price,
-      created_at: new Date().toISOString().split('T')[0]
-    };
-  });
-
-  localStorage.setItem(storageKey, JSON.stringify(newTxList));
-  return { status: 'success' };
-}
-
-// -------------------------------------------------------------
-// 6. RESILIENT AUTH & STRICT LOGIN SERVICE
-// -------------------------------------------------------------
-const DEFAULT_ACCOUNTS = [
-  {
-    user_id: 1,
-    portfolio_id: 1,
-    username: 'saksham',
-    password: 'saksham123',
-    full_name: 'Saksham Varshney',
-    risk_profile: 'Balanced',
-    investment_horizon: 'Medium-term'
-  }
-];
-
-export async function loginUser(loginForm, isSignup = false) {
-  const username = (loginForm.username || '').trim();
-  const password = (loginForm.password || '').trim();
-
-  if (!username) {
-    throw new Error('Please enter a username.');
-  }
-  if (!password) {
-    throw new Error('Please enter your password.');
-  }
-
-  // Ensure registered_accounts in localStorage is initialized
-  let localAccounts = [];
-  try {
-    const raw = localStorage.getItem('registered_accounts');
-    if (raw) {
-      localAccounts = JSON.parse(raw);
-    } else {
+    // Ensure registered_accounts in localStorage is initialized
+    let localAccounts = [];
+    try {
+      const raw = localStorage.getItem('registered_accounts');
+      if (raw) {
+        localAccounts = JSON.parse(raw);
+      } else {
+        localAccounts = [...DEFAULT_ACCOUNTS];
+        localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
+      }
+    } catch (e) {
       localAccounts = [...DEFAULT_ACCOUNTS];
+    }
+
+    const normalizedUsername = username.toLowerCase();
+
+    // Handle Sign Up
+    if (isSignup) {
+      if (password.length < 4) {
+        throw new Error('Password must be at least 4 characters long.');
+      }
+
+      // Check if account already exists locally
+      if (localAccounts.some(acc => acc.username.toLowerCase() === normalizedUsername)) {
+        throw new Error('Username is already taken. Please choose another username or Log In.');
+      }
+
+      // Attempt backend registration if available
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username,
+            password,
+            full_name: loginForm.full_name?.trim() || username,
+            risk_profile: loginForm.risk_profile || 'Balanced',
+            investment_horizon: loginForm.investment_horizon || 'Medium-term',
+            is_signup: true
+          })
+        }, 6000);
+
+        const data = await res.json();
+        if (!res.ok || data.status === 'error') {
+          throw new Error(data.message || 'Registration failed.');
+        }
+        if (data && data.status === 'success') {
+          const newEntry = { ...data, password };
+          localAccounts.push(newEntry);
+          localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
+          // Initialize clean, completely empty portfolio for new account
+          try {
+            const uid = data.user_id || username;
+            localStorage.setItem(getUserStorageKey(uid, 'real'), JSON.stringify([]));
+            localStorage.setItem(getUserStorageKey(uid, 'sandbox'), JSON.stringify([]));
+            localStorage.setItem(getUserStorageKey(username, 'real'), JSON.stringify([]));
+            localStorage.setItem(getUserStorageKey(username, 'sandbox'), JSON.stringify([]));
+          } catch (e) { }
+          return data;
+        }
+      } catch (apiErr) {
+        if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Network') && !apiErr.message.includes('timeout') && !apiErr.message.includes('Failed to fetch')) {
+          throw apiErr;
+        }
+      }
+
+      // Create local account
+      const newId = Date.now();
+      const newUser = {
+        status: 'success',
+        user_id: newId,
+        portfolio_id: newId + 1,
+        username: username,
+        password: password,
+        full_name: loginForm.full_name?.trim() || username,
+        risk_profile: loginForm.risk_profile || 'Balanced',
+        investment_horizon: loginForm.investment_horizon || 'Medium-term'
+      };
+
+      localAccounts.push(newUser);
       localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
-    }
-  } catch (e) {
-    localAccounts = [...DEFAULT_ACCOUNTS];
-  }
 
-  const normalizedUsername = username.toLowerCase();
+      // Initialize clean, completely empty portfolio for new account
+      try {
+        localStorage.setItem(getUserStorageKey(newId, 'real'), JSON.stringify([]));
+        localStorage.setItem(getUserStorageKey(newId, 'sandbox'), JSON.stringify([]));
+        localStorage.setItem(getUserStorageKey(username, 'real'), JSON.stringify([]));
+        localStorage.setItem(getUserStorageKey(username, 'sandbox'), JSON.stringify([]));
+      } catch (e) { }
 
-  // Handle Sign Up
-  if (isSignup) {
-    if (password.length < 4) {
-      throw new Error('Password must be at least 4 characters long.');
-    }
-
-    // Check if account already exists locally
-    if (localAccounts.some(acc => acc.username.toLowerCase() === normalizedUsername)) {
-      throw new Error('Username is already taken. Please choose another username or Log In.');
+      return newUser;
     }
 
-    // Attempt backend registration if available
+    // Handle Log In
+    // 1. First try calling /api/login endpoint backed by cloud registry
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/login`, {
         method: 'POST',
@@ -912,29 +1043,22 @@ export async function loginUser(loginForm, isSignup = false) {
         body: JSON.stringify({
           username,
           password,
-          full_name: loginForm.full_name?.trim() || username,
-          risk_profile: loginForm.risk_profile || 'Balanced',
-          investment_horizon: loginForm.investment_horizon || 'Medium-term',
-          is_signup: true
+          is_signup: false
         })
       }, 6000);
 
       const data = await res.json();
       if (!res.ok || data.status === 'error') {
-        throw new Error(data.message || 'Registration failed.');
+        throw new Error(data.message || 'Authentication failed.');
       }
       if (data && data.status === 'success') {
-        const newEntry = { ...data, password };
-        localAccounts.push(newEntry);
-        localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
-        // Initialize clean, completely empty portfolio for new account
+        // Save to local device accounts cache so offline access also works
         try {
-          const uid = data.user_id || username;
-          localStorage.setItem(getUserStorageKey(uid, 'real'), JSON.stringify([]));
-          localStorage.setItem(getUserStorageKey(uid, 'sandbox'), JSON.stringify([]));
-          localStorage.setItem(getUserStorageKey(username, 'real'), JSON.stringify([]));
-          localStorage.setItem(getUserStorageKey(username, 'sandbox'), JSON.stringify([]));
-        } catch (e) {}
+          if (!localAccounts.some(acc => acc.username.toLowerCase() === normalizedUsername)) {
+            localAccounts.push({ ...data, password });
+            localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
+          }
+        } catch (e) { }
         return data;
       }
     } catch (apiErr) {
@@ -943,83 +1067,23 @@ export async function loginUser(loginForm, isSignup = false) {
       }
     }
 
-    // Create local account
-    const newId = Date.now();
-    const newUser = {
+    // 2. Strict local validation against registered_accounts
+    const matched = localAccounts.find(acc => acc.username.toLowerCase() === normalizedUsername);
+    if (!matched) {
+      throw new Error("Account not found. Please click 'Sign up' below to create an account.");
+    }
+
+    if (matched.password && matched.password !== password) {
+      throw new Error('Incorrect password. Please verify and try again.');
+    }
+
+    return {
       status: 'success',
-      user_id: newId,
-      portfolio_id: newId + 1,
-      username: username,
-      password: password,
-      full_name: loginForm.full_name?.trim() || username,
-      risk_profile: loginForm.risk_profile || 'Balanced',
-      investment_horizon: loginForm.investment_horizon || 'Medium-term'
+      user_id: matched.user_id || 1,
+      portfolio_id: matched.portfolio_id || 1,
+      username: matched.username,
+      full_name: matched.full_name || matched.username,
+      risk_profile: matched.risk_profile || 'Balanced',
+      investment_horizon: matched.investment_horizon || 'Medium-term'
     };
-
-    localAccounts.push(newUser);
-    localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
-
-    // Initialize clean, completely empty portfolio for new account
-    try {
-      localStorage.setItem(getUserStorageKey(newId, 'real'), JSON.stringify([]));
-      localStorage.setItem(getUserStorageKey(newId, 'sandbox'), JSON.stringify([]));
-      localStorage.setItem(getUserStorageKey(username, 'real'), JSON.stringify([]));
-      localStorage.setItem(getUserStorageKey(username, 'sandbox'), JSON.stringify([]));
-    } catch (e) {}
-
-    return newUser;
   }
-
-  // Handle Log In
-  // 1. First try calling /api/login endpoint backed by cloud registry
-  try {
-    const res = await fetchWithTimeout(`${API_BASE}/api/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username,
-        password,
-        is_signup: false
-      })
-    }, 6000);
-
-    const data = await res.json();
-    if (!res.ok || data.status === 'error') {
-      throw new Error(data.message || 'Authentication failed.');
-    }
-    if (data && data.status === 'success') {
-      // Save to local device accounts cache so offline access also works
-      try {
-        if (!localAccounts.some(acc => acc.username.toLowerCase() === normalizedUsername)) {
-          localAccounts.push({ ...data, password });
-          localStorage.setItem('registered_accounts', JSON.stringify(localAccounts));
-        }
-      } catch (e) {}
-      return data;
-    }
-  } catch (apiErr) {
-    if (apiErr.message && !apiErr.message.includes('fetch') && !apiErr.message.includes('Network') && !apiErr.message.includes('timeout') && !apiErr.message.includes('Failed to fetch')) {
-      throw apiErr;
-    }
-  }
-
-  // 2. Strict local validation against registered_accounts
-  const matched = localAccounts.find(acc => acc.username.toLowerCase() === normalizedUsername);
-  if (!matched) {
-    throw new Error("Account not found. Please click 'Sign up' below to create an account.");
-  }
-
-  if (matched.password && matched.password !== password) {
-    throw new Error('Incorrect password. Please verify and try again.');
-  }
-
-  return {
-    status: 'success',
-    user_id: matched.user_id || 1,
-    portfolio_id: matched.portfolio_id || 1,
-    username: matched.username,
-    full_name: matched.full_name || matched.username,
-    risk_profile: matched.risk_profile || 'Balanced',
-    investment_horizon: matched.investment_horizon || 'Medium-term'
-  };
-}

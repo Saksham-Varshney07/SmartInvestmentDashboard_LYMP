@@ -27,7 +27,22 @@ const STOCK_PRICES = {
   'TATAMOTORS.NS': { name: 'Tata Motors', price: 780.00, sector: 'Automobile', risk: 'Moderate' },
   'SBIN.NS': { name: 'State Bank of India', price: 810.00, sector: 'Financial Services', risk: 'Moderate' },
   'ITC.NS': { name: 'ITC Ltd', price: 470.00, sector: 'Consumer Goods', risk: 'Low' },
-  'BHARTIARTL.NS': { name: 'Bharti Airtel', price: 1600.00, sector: 'Telecommunications', risk: 'Moderate' }
+  'BHARTIARTL.NS': { name: 'Bharti Airtel', price: 1600.00, sector: 'Telecommunications', risk: 'Moderate' },
+  'HINDUNILVR.NS': { name: 'Hindustan Unilever', price: 2350.00, sector: 'Consumer Goods', risk: 'Low' },
+  'DRREDDY.NS': { name: 'Dr Reddys Laboratories', price: 1260.00, sector: 'Healthcare', risk: 'Low' },
+  'TITAN.NS': { name: 'Titan Company', price: 3450.00, sector: 'Consumer Goods', risk: 'Low' },
+  'LT.NS': { name: 'Larsen & Toubro', price: 3650.00, sector: 'Infrastructure', risk: 'Low' },
+  'KOTAKBANK.NS': { name: 'Kotak Mahindra Bank', price: 1780.00, sector: 'Financial Services', risk: 'Moderate' },
+  'AXISBANK.NS': { name: 'Axis Bank', price: 1160.00, sector: 'Financial Services', risk: 'Moderate' },
+  'BAJFINANCE.NS': { name: 'Bajaj Finance', price: 6850.00, sector: 'Financial Services', risk: 'Moderate' },
+  'WIPRO.NS': { name: 'Wipro Ltd', price: 490.00, sector: 'Technology', risk: 'Moderate' },
+  'HCLTECH.NS': { name: 'HCL Technologies', price: 1750.00, sector: 'Technology', risk: 'Low' },
+  'NTPC.NS': { name: 'NTPC Ltd', price: 330.00, sector: 'Energy', risk: 'Moderate' },
+  'ONGC.NS': { name: 'Oil & Natural Gas Corp', price: 235.00, sector: 'Energy', risk: 'Moderate' },
+  'POWERGRID.NS': { name: 'Power Grid Corp', price: 260.00, sector: 'Energy', risk: 'Moderate' },
+  'SUNPHARMA.NS': { name: 'Sun Pharmaceutical', price: 1900.00, sector: 'Healthcare', risk: 'Low' },
+  'CIPLA.NS': { name: 'Cipla Ltd', price: 1400.00, sector: 'Healthcare', risk: 'Low' },
+  'MARUTI.NS': { name: 'Maruti Suzuki', price: 12900.00, sector: 'Automobile', risk: 'Moderate' }
 };
 
 let localPortfolioCache = null;
@@ -260,6 +275,47 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch (e) { body = {}; }
   }
   body = body || {};
+
+  // Check if this is an apply_blueprint request
+  const isApplyBlueprint =
+    req.url.includes('apply_blueprint') ||
+    req.query.action === 'apply_blueprint' ||
+    Array.isArray(body.allocations);
+
+  if (isApplyBlueprint && (req.method === 'POST' || req.method === 'PUT')) {
+    const rawUserId = req.query.user_id || body.user_id || 'guest';
+    const uid = String(rawUserId).toLowerCase();
+    const key = `${uid}_sandbox`;
+
+    const allocs = body.allocations || [];
+    const newTxList = allocs.map((alloc, idx) => {
+      const sym = (alloc.ticker || alloc.symbol || alloc.name || '').toUpperCase();
+      const info = STOCK_PRICES[sym] || { price: 1000, name: sym.replace(/\.(NS|BO)$/i, ''), sector: 'Equities', risk: 'Moderate' };
+      const price = parseFloat(info.price) || 1000;
+      const amount = parseFloat(alloc.amount) || 25000;
+      const shares = Number((amount / price).toFixed(2));
+      return {
+        id: Date.now() + idx,
+        symbol: sym,
+        transaction_type: 'BUY',
+        shares,
+        price_at_purchase: price,
+        created_at: new Date().toISOString().split('T')[0]
+      };
+    });
+
+    portfolios[key] = newTxList;
+    if (body.username) {
+      portfolios[`${String(body.username).toLowerCase()}_sandbox`] = newTxList;
+    }
+    await saveRemotePortfolios(portfolios);
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Blueprint applied successfully to sandbox portfolio.',
+      assets_count: newTxList.length
+    });
+  }
 
   if (req.method === 'POST' || req.method === 'PUT') {
     const txData = body;
